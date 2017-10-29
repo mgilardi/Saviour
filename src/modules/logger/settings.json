@@ -1,5 +1,5 @@
 {
 	"Name": "Logger",
 	"Disabled": "False",
-	"Log":"File"
+	"LogType":"File"
 }

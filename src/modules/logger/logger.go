@@ -1,8 +1,25 @@
 package logger
 
-import ("fmt"
-		"config")
+import (
+  "config"
+  "fmt"
+  )
 
-func LogData(error string, s []Settings) {
-	if 
+
+  struct LogData
+
+func LogData(level int, error string, moduleName string) {
+
+}
+
+func writeLogFile {
+
+}
+
+func writeSystemLog {
+
+}
+
+func writeDatabase {
+
 }
