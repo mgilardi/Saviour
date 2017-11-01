@@ -1,4 +1,6 @@
 {
 	"Name": "Database",
-	"Disabled": "False"
+    "Disabled": "False",
+	"User":"root",
+	"Pass":"7kKozuka"
 }

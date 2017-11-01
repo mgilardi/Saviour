@@ -12,44 +12,44 @@ the client.
 This server is made up of seperate modules that handle the different areas of
 the Saviour service. These include:
 
-*Access
+* Access
 
 Handles login/logout, encryption layer, & determining if a user is an Administrator
 
-*Cache
+* Cache
 
 A general caching module that allows other modules to cache information in the
 database or elsewhere.
 
-*Database
+* Database
 
 Allows Saviour to read, write, & manage over the database
 
-*Logger
+* Logger
 
 Provides logging structure for Saviour. Handles output of logs, Error output
 levels and determine how verbose the server is.
 
-*Messaging
+* Messaging
 
 Handles alerts to clients via Email, Text, Notification, Web, etc.
 
-*Metadata
+* Metadata
 
 Tracks data from transactions and records them in a way that can be used
 to determine unusual activity on the account.
 
-*Rules
+* Rules
 
 Determines if transactions take place automatically or are halted and the
 user is alerted based on metadata and user configured rules.
 
-*System
+* System
 
 Handles server connecting clients, requests, system information,
 reading/writing to disk, and various other functions
 
-*User
+* User
 
 Handles user information and requests
 
@@ -58,7 +58,7 @@ Handles user information and requests
 Settings for each modules are located inside the module folder. Option type is
 declared in the json file followed by the option value.
 
-[Example:]
+Example:
 
 ```
 {"Type":"Value","Type":"Value"}
@@ -81,7 +81,7 @@ Comments/GoDoc:
 GoDoc parses lines that "//Name" proceed any type, variable, constant, function,or
 package and generates a html file with documentation
 
-[Example:]
+Example:
 
 ```
 // Function Description

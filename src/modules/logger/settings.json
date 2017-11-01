@@ -1,5 +1,7 @@
 {
 	"Name": "Logger",
 	"Disabled": "False",
-	"LogType":"File"
+	"LogType":"System",
+	"LogLevel":"3",
+    "SysLevel":"3"
 }

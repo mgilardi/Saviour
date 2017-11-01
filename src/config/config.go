@@ -5,11 +5,15 @@
 package config
 
 import (
-  "fmt"
-  "os"
-  "encoding/json"
-  "io/ioutil"
-  "errors"
+        "os"
+        "encoding/json"
+        "io/ioutil"
+        "errors"
+        "fmt"
+)
+
+const (
+  thisModule = "Config"
 )
 
 //Setting stores the id of the module and a map of the imported keys and values
@@ -18,49 +22,74 @@ type Setting struct {
   setMap map[string]string
 }
 
-// Constructor For Setting Strut
-func initSet(path string, id int) Setting {
+// initSetting is a constructor for the config object initSetting(pathtofile, idofmodule)
+// returns an array of config objects for each module.
+func initSetting(path string, id int) (error, Setting) {
   var options Setting
   options.id = id
   options.setMap = make(map[string]string)
   options.setMap["path"] = path
-  options.loadFile()
-  return options
+  err := options.LoadFile()
+  return err, options
 }
 
-// Load JSON file.
-func (options Setting) loadFile() {
+// LoadFile loads the JSON settings file for this specific module.
+func (options *Setting) LoadFile() error {
   raw, err := ioutil.ReadFile(options.setMap["path"])
-  if (err != nil) {
-    fmt.Println("Saviour::Config::Error::CannotReadFile")
-    // Handle Error
-  }
   err = json.Unmarshal(raw, &options.setMap)
-  if (err != nil) {
-    // Handler Error
-  }
+  return err
 }
 
-// Find Configuration Value Using Key
-func (options Setting) findValue(key string) string {
+// FindValue returns a value from the setting map
+func (options *Setting) FindValue(key string) (error, string) {
+  var err error
   value := options.setMap[key]
-  return value
+  if (value == "") {
+    err = errors.New("CouldNotFindValue::" + key)
+  }
+  return err, value
 }
 
-// GetSettings loads settings from each modules settings.json into a struct
-// array of maps for each module. It returns a pointer to the assemble struct
-// array containing the settings map for each module.
+// GetSettings loads settings from each module creates an array of config objects
+// with a setting map for each module. It returns a pointer to the assembled object
+// array.
 func GetSettings() *[]Setting {
   settings := make([]Setting, 0)
   files, err := ioutil.ReadDir("modules")
   if (err != nil) {
+    fmt.Println("Error::Config::CannotReadDirectory")
+    fmt.Println("Error::Config::" + err.Error())
     os.Exit(1)
   }
   for i, file := range files {
-    settings = append(settings, initSet("modules/" + file.Name() +
-      "/settings.json", i))
+    err, setting := initSetting("modules/" + file.Name() + "/settings.json", i)
+    if (err != nil) {
+     fmt.Println("Error::Config::CannotLoadSettings")
+     fmt.Println("Error::Config::" + err.Error())
+    } else {
+      settings = append(settings, setting)
+    }
   }
   return &settings
+}
+
+// GetSettingModule takes in the array of Setting and gives back the element for the
+// specified module.
+func GetSettingModule(module string, options *[]Setting) (error, *Setting) {
+  var err error
+  var set Setting
+  var check string
+  for _, opt := range *options {
+    if opt.setMap["Name"] == module {
+      set = opt
+      check = opt.setMap["Name"]
+      break
+    }
+  }
+  if (check == "") {
+    err = errors.New("ModuleNotFound")
+  }
+  return err, &set
 }
 
 // FileValue returns a setting key from the setting array, if no value is
@@ -70,8 +99,8 @@ func FindValue(module string, key string) (error, string) {
   var err error
   options := GetSettings()
   for _, opt := range *options {
-    if opt.setMap["Name"] == module {
-      output = opt.findValue(key)
+    if (opt.setMap["Name"] == module) {
+      err, output = opt.FindValue(key)
       break
     }
   }
@@ -80,3 +109,4 @@ func FindValue(module string, key string) (error, string) {
   }
   return err, output
 }
+

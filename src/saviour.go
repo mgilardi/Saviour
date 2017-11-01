@@ -3,19 +3,21 @@ This is the beginning entry point for the Saviour Server
 */
 package main
 
-import ("fmt"
+import (
+        "modules/logger"
+        "modules/database"
         "config"
-  //"modules/logger"
+        "fmt"
+)
+
+const (
+  thisModule = "Main"
 )
 
 func main() {
-  fmt.Println("Saviour::Start...")
-  fmt.Println("Saviour::Loading_Configuration...")
-  err, value := config.FindValue("this", "shit")
-  if (err != nil) {
-    // handle error
-    fmt.Println("Saviour::Error::" + err.Error())
-  } else {
-    fmt.Println("Saviour::Config::Key::" + value)
-  }
+  fmt.Println("Saviour::Starting...")
+  conf := config.GetSettings()
+  log := logger.InitLogData(conf)
+  db := database.InitDatabase(conf, log)
+  db.CheckDB()
 }
