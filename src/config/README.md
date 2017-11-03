@@ -1,4 +1,4 @@
-#PACKAGE DOCUMENTATION
+PACKAGE DOCUMENTATION
 
 package config
     import "config"
@@ -8,21 +8,31 @@ package config
     without modification. Can return a array including all the separate
     modules with their corresponding configuration keys and values.
 
-##FUNCTIONS
+FUNCTIONS
 
 func FindValue(module string, key string) (error, string)
     FileValue returns a setting key from the setting array, if no value is
     found it returns an error.
 
-func GetSettings() *[]Setting
-    GetSettings loads settings from each modules settings.json into a struct
-    array of maps for each module. It returns a pointer to the assemble
-    struct array containing the settings map for each module.
+func GetSettingModule(module string, options *[]Setting) (error, *Setting)
+    GetSettingModule takes in the array of Setting and gives back the
+    element for the specified module.
 
-##TYPES
+func GetSettings() *[]Setting
+    GetSettings loads settings from each module creates an array of config
+    objects with a setting map for each module. It returns a pointer to the
+    assembled object array.
+
+TYPES
 
 type Setting struct {
     // contains filtered or unexported fields
 }
     Setting stores the id of the module and a map of the imported keys and
     values
+
+func (options *Setting) FindValue(key string) (error, string)
+    FindValue returns a value from the setting map
+
+func (options *Setting) LoadFile() error
+    LoadFile loads the JSON settings file for this specific module.

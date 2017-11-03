@@ -19,7 +19,7 @@ const (
 //Setting stores the id of the module and a map of the imported keys and values
 type Setting struct {
   id int
-  setMap map[string]string
+  setMap map[string]interface{}
 }
 
 // initSetting is a constructor for the config object initSetting(pathtofile, idofmodule)
@@ -27,7 +27,7 @@ type Setting struct {
 func initSetting(path string, id int) (error, Setting) {
   var options Setting
   options.id = id
-  options.setMap = make(map[string]string)
+  options.setMap = make(map[string]interface{})
   options.setMap["path"] = path
   err := options.LoadFile()
   return err, options
@@ -35,19 +35,15 @@ func initSetting(path string, id int) (error, Setting) {
 
 // LoadFile loads the JSON settings file for this specific module.
 func (options *Setting) LoadFile() error {
-  raw, err := ioutil.ReadFile(options.setMap["path"])
+  raw, err := ioutil.ReadFile(options.setMap["path"].(string))
   err = json.Unmarshal(raw, &options.setMap)
   return err
 }
 
 // FindValue returns a value from the setting map
-func (options *Setting) FindValue(key string) (error, string) {
-  var err error
+func (options *Setting) FindValue(key string) interface{} {
   value := options.setMap[key]
-  if (value == "") {
-    err = errors.New("CouldNotFindValue::" + key)
-  }
-  return err, value
+  return value
 }
 
 // GetSettings loads settings from each module creates an array of config objects
@@ -82,7 +78,7 @@ func GetSettingModule(module string, options *[]Setting) (error, *Setting) {
   for _, opt := range *options {
     if opt.setMap["Name"] == module {
       set = opt
-      check = opt.setMap["Name"]
+      check = opt.setMap["Name"].(string)
       break
     }
   }
@@ -92,21 +88,15 @@ func GetSettingModule(module string, options *[]Setting) (error, *Setting) {
   return err, &set
 }
 
-// FileValue returns a setting key from the setting array, if no value is
-// found it returns an error.
-func FindValue(module string, key string) (error, string) {
-  var output string
-  var err error
+// FileValue returns a setting key from the setting array
+func FindValue(module string, key string) interface{} {
+  var output interface{}
   options := GetSettings()
   for _, opt := range *options {
     if (opt.setMap["Name"] == module) {
-      err, output = opt.FindValue(key)
+      output = opt.FindValue(key)
       break
     }
   }
-  if (output == "") {
-    err = errors.New("KeyNotFound")
-  }
-  return err, output
+  return output
 }
-
