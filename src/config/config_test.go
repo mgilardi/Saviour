@@ -7,14 +7,18 @@ import (
 )
 
 func TestGetSettings(t *testing.T) {
-  var options *[]Setting
-  var optionsTest []Setting
+  var options []Setting
+  var optionsTest Setting
   var optionsTestPtr *[]Setting
+  var err error
   options = GetSettings()
   files, _ := ioutil.ReadDir("modules")
   for i, file := range files {
-    optionsTest = append(optionsTest, initSet("modules/" + file.Name() +
-      "/settings.json", i))
+    err, optionsTest = initSetting("modules/" + file.Name() + "/settings.json", i)
+    options = append(options, optionsTest)
+  }
+  if err != nil {
+
   }
   optionsTestPtr = &optionsTest
   if (!reflect.DeepEqual(options, optionsTestPtr)) {
@@ -23,10 +27,8 @@ func TestGetSettings(t *testing.T) {
 }
 
 func TestFindValuePass(t *testing.T) {
-  err, _ := FindValue("Access", "Name")
-  if err != nil {
-    t.Errorf("FindValue::KeyNotFound")
-  }
+  value := FindValue("Access", "Name").(string)
+
 }
 
 func TestFindValueFail(t *testing.T) {

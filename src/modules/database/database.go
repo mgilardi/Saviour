@@ -80,50 +80,7 @@ func (db Database) CheckDB() {
 
 func (db Database) createTables(currentTables []string) {
   if len(currentTables) == 0 {
-    rows, err := db.sql.Query("CREATE TABLE Cache (CID INT NOT NULL AUTO_INCREMENT PRIMARY KEY," +
-      " Data LONGBLOB, Created INT(11), Expires INT(11))")
-    if err != nil {
-        db.logger.Error(err.Error(), thisModule, 3)
-        db.logger.Error("FailedToLoadCacheTable", thisModule, 1)
-    }
-    rows, err = db.sql.Query("CREATE TABLE Users (UID INT NOT NULL AUTO_INCREMENT PRIMARY KEY," +
-      " Username VARCHAR(45), Password VARCHAR(45), FirstName VARCHAR(45), LastName VARCHAR(45)," +
-      " Phone VARCHAR(45), Email VARCHAR(45), Address VARCHAR(45))")
-    if err != nil {
-      db.logger.Error(err.Error(), thisModule, 3)
-      db.logger.Error("FailedToLoadUsersTable", thisModule, 1)
-    }
-    rows, err = db.sql.Query("CREATE TABLE CreditCards (CCID INT NOT NULL AUTO_INCREMENT PRIMARY KEY," +
-      " UserID INT NOT NULL, Type VARCHAR(45), Number INT(45)," +
-      " CCV INT(45), INDEX CreditCard_User_IDX(UserID))")
-    if err != nil {
-      db.logger.Error(err.Error(), thisModule, 3)
-      db.logger.Error("FailedToLoadCreditCardsTable", thisModule, 1)
-    }
-    rows, err = db.sql.Query("ALTER TABLE `CreditCards` ADD CONSTRAINT `userID_creditcards` FOREIGN KEY (`UserID`)" +
-      "REFERENCES `Users`(`UID`) ON DELETE CASCADE ON UPDATE CASCADE")
-    if err != nil {
-      db.logger.Error(err.Error(), thisModule, 3)
-      db.logger.Error("FailedToLoadCreditCards", thisModule, 1)
-      }
-    rows, err = db.sql.Query("CREATE TABLE ActivityLog (AID INT NOT NULL AUTO_INCREMENT PRIMARY KEY," +
-      " UserID INT NOT NULL, Timestamp DATETIME," +
-      " Log VARCHAR(255), INDEX CreditCard_User_IDX(UserID))")
-    if err != nil {
-      db.logger.Error(err.Error(), thisModule, 3)
-      db.logger.Error("FailedToLoadActivityLogTable", thisModule, 1)
-    }
-    rows, err = db.sql.Query("ALTER TABLE `ActivityLog` ADD CONSTRAINT `userID_activityLog` FOREIGN KEY (`UserID`)" +
-      "REFERENCES `Users`(`UID`) ON DELETE CASCADE ON UPDATE CASCADE")
-    if err != nil {
-      db.logger.Error(err.Error(), thisModule, 3)
-      db.logger.Error("FailedToLoadActivityLogTable", thisModule, 1)
-    }
-    err = rows.Err()
-    if err != nil {
-      db.logger.Error(err.Error(), thisModule, 3)
-      db.logger.Error("RowsError", thisModule, 1)
-    }
+    // Load DB File
   }
   db.logger.SystemMessage("Tables::Loaded", thisModule)
 }
