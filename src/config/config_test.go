@@ -1,42 +1,35 @@
-package config
+package config_test
 
 import (
   "testing"
-  "io/ioutil"
-  "reflect"
+  "config"
 )
 
 func TestGetSettings(t *testing.T) {
-  var options []Setting
-  var optionsTest Setting
-  var optionsTestPtr *[]Setting
-  var err error
-  options = GetSettings()
-  files, _ := ioutil.ReadDir("modules")
-  for i, file := range files {
-    err, optionsTest = initSetting("modules/" + file.Name() + "/settings.json", i)
-    options = append(options, optionsTest)
-  }
-  if err != nil {
-
-  }
-  optionsTestPtr = &optionsTest
-  if (!reflect.DeepEqual(options, optionsTestPtr)) {
-    t.Errorf("TestGetSettings:OutputsDontMatch")
+  options := config.GetSettings()
+  for _, opt := range *options {
+    name := opt.FindValue("Name")
+    if name == "" {
+      t.Errorf("GetSettings Failed")
+    }
   }
 }
 
 func TestFindValuePass(t *testing.T) {
-  value := FindValue("Access", "Name").(string)
-
+  value := config.FindValue("Access", "Name")
+  if value == nil {
+    t.Errorf("Value is NULL")
+  }
+  if value.(string) == "" {
+    t.Errorf("Could Not Get Value")
+  }
 }
 
 func TestFindValueFail(t *testing.T) {
-  err , value := FindValue("Test", "Test")
-  if (err != nil) {
-    // No Fail
-  }
-  if (value != "") {
-    t.Error("FindValue::KeyFound")
+  value := config.FindValue("Test", "Test")
+  if value == nil {
+    // good
+  } else {
+    t.Errorf("FindValue::KeyFound::" + value.(string))
   }
 }
