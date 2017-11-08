@@ -92,6 +92,7 @@ func (sys System) loginRequest( w http.ResponseWriter, r *http.Request) {
     }
     sys.logger.SystemMessage("Token::" + token.Token, thisModule)
     loginResponse, err := json.Marshal(&token)
+    sys.db.StoreToken(login.User, token.Token)
     if err != nil {
       //
     }

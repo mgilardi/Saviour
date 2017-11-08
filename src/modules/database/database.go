@@ -103,8 +103,25 @@ func (db Database) CheckUser(name string, pass string) bool {
 }
 
 func (db Database) CreateUser(name string, pass string, email string) {
-  db.sql.QueryRow("INSERT INTO users (name, pass, mail, created) " +
+  db.sql.Query("INSERT INTO users (name, pass, mail, created) " +
     "VALUES (?, ?, ?, NOW())", name, pass, email)
+}
+
+func (db Database) GetUserID(name string) int {
+  var uid int
+  err := db.sql.QueryRow("SELECT uid FROM users WHERE name = ?", name).Scan(&uid)
+  if (err !=nil) {
+    //
+  }
+  return uid
+}
+
+func (db Database) StoreToken(name string, token string) {
+  uid := db.GetUserID(name)
+  _, err := db.sql.Query("INSERT INTO login_token(uid, token, created) VALUES (?, ?, NOW())", uid, token)
+  if (err != nil) {
+    db.logger.Error(err.Error(), thisModule, 3)
+  }
 }
 
 func WriteCache() {
