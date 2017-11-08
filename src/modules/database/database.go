@@ -89,60 +89,28 @@ func (db Database) createTables(currentTables []string) {
   db.logger.SystemMessage("Tables::Loaded", thisModule)
 }
 
-// WriteCache creates a new cache entry with any object converted into a binary entry
-func (db Database) WriteCache(key string, blob []byte, created int64, expires int64) {
-  rows, err := db.sql.Query("CALL WriteCache($1, $2, $3, $4)", key, blob, created, expires)
-  if err != nil {
-    // Error
-  }
-  rows.Close()
-}
-
-// ReadCache finds cache entry and returns the data
-func (db Database) ReadCache(key string) (error, []byte) {
-  var result sql.NullString
-  err := db.sql.QueryRow("CALL ReadCache($1)", key).Scan(&result)
-  if err != nil {
+func (db Database) CheckUser(name string, pass string) bool {
+  var dbPass string
+  var verified = false
+  err := db.sql.QueryRow("SELECT pass FROM users WHERE name = ?",name).Scan(&dbPass)
+  if (err != nil) {
     //
   }
-  if result.Valid {
-
-  } else {
-
+  if (dbPass == pass) {
+    verified = true
   }
-  convResult := []byte(result.String)
-  return err, convResult
+  return verified
 }
 
-// RemoveCache finds cache entry and removes it from the database
-func (db Database) RemoveCache(key string) {
-  rows, err := db.sql.Query("CALL RemoveCache($1)", key)
-  if err != nil {
-    //
-  }
-  rows.Close()
+func (db Database) CreateUser(name string, pass string, email string) {
+  db.sql.QueryRow("INSERT INTO users (name, pass, mail, created) " +
+    "VALUES (?, ?, ?, NOW())", name, pass, email)
 }
 
-func (db Database) GetCacheTable() {
+func WriteCache() {
 
 }
 
-func (db Database) CreateUser(user string, pass string) {
-
-}
-
-func (db Database) SetUserData(uid int, name string, phone string, address string) {
-
-}
-
-func (db Database) SetPassword(user string) {
-
-}
-
-func (db Database) GetUID(user string) {
-
-}
-
-func (db Database) GetUserData(user string) {
+func ReadCache() {
 
 }

@@ -9,8 +9,11 @@ func TestGetSettings(t *testing.T) {
   options := config.GetSettings()
   for _, opt := range *options {
     name := opt.FindValue("Name")
+    if name == nil {
+      t.Errorf("ValueIsNull")
+    }
     if name == "" {
-      t.Errorf("GetSettings Failed")
+      t.Errorf("GetSettings() Failed")
     }
   }
 }
@@ -18,7 +21,7 @@ func TestGetSettings(t *testing.T) {
 func TestFindValuePass(t *testing.T) {
   value := config.FindValue("Access", "Name")
   if value == nil {
-    t.Errorf("Value is NULL")
+    t.Errorf("ValueIsNull")
   }
   if value.(string) == "" {
     t.Errorf("Could Not Get Value")

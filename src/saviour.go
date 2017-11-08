@@ -6,9 +6,10 @@ package main
 import (
   "modules/logger"
   "modules/database"
+  "modules/cache"
+  "modules/system"
   "config"
   "fmt"
-  "modules/cache"
 )
 
 const (
@@ -22,5 +23,5 @@ func main() {
   log := logger.InitLogData(conf)
   db := database.InitDatabase(conf, log)
   loadedCache := cache.InitCache(conf, db, log)
-  loadedCache.CheckCache()
+  system.InitSystem(conf, db, log, loadedCache)
 }
