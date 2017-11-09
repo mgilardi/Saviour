@@ -52,3 +52,11 @@ func (log *LogData) Error(message string, module string, level int) {
     os.Exit(1)
   }
 }
+
+// Error outputs a assembled error message to the console
+func Error(message string, module string, level int) {
+  fmt.Println("Error::" + module + "::" + message)
+  if (level == 1) {
+    os.Exit(1)
+  }
+}
