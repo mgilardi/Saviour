@@ -63,7 +63,7 @@ func InitDatabase(settings *[]config.Setting, log *logger.LogData) *Database {
 func (db Database) CheckDB() {
   tables := make([]string, 0)
   rows, err := db.sql.Query("SHOW TABLES")
-  if err != nil {
+  if (err != nil) {
     db.logger.Error(err.Error(), thisModule, 3)
     db.logger.Error("NoTablesCheckDB", thisModule, 1)
   }
@@ -93,35 +93,67 @@ func (db Database) CheckUser(name string, pass string) bool {
   var dbPass string
   var verified = false
   err := db.sql.QueryRow("SELECT pass FROM users WHERE name = ?",name).Scan(&dbPass)
-  if (err != nil) {
-    //
-  }
-  if (dbPass == pass) {
+  switch {
+  case err == sql.ErrNoRows:
+    db.logger.Error("UserNotFound", thisModule, 3)
+  case err != nil:
+    db.logger.Error(err.Error(), thisModule, 3)
+  case dbPass == pass:
     verified = true
   }
   return verified
 }
 
 func (db Database) CreateUser(name string, pass string, email string) {
-  db.sql.Query("INSERT INTO users (name, pass, mail, created) " +
-    "VALUES (?, ?, ?, NOW())", name, pass, email)
+  rows, err := db.sql.Query("INSERT INTO users (name, pass, mail, created) VALUES (?, ?, ?, NOW())", name, pass, email)
+    if (err != nil) {
+      db.logger.Error(err.Error(), thisModule, 3)
+    }
+  rows.Close()
 }
 
 func (db Database) GetUserID(name string) int {
   var uid int
   err := db.sql.QueryRow("SELECT uid FROM users WHERE name = ?", name).Scan(&uid)
   if (err !=nil) {
-    //
+    db.logger.Error(err.Error(), thisModule, 3)
   }
   return uid
 }
 
+func (db Database) CheckToken(name string) bool {
+  exists := false
+  var token string
+  uid := db.GetUserID(name)
+  err := db.sql.QueryRow("SELECT token FROM login_token where uid = ?", uid).Scan(&token)
+  switch {
+  case err == sql.ErrNoRows:
+    db.logger.Error("TokenNotFound", thisModule, 3)
+  case err != nil:
+    db.logger.Error(err.Error(), thisModule, 3)
+  default:
+    exists = true
+  }
+  return exists
+}
+
 func (db Database) StoreToken(name string, token string) {
   uid := db.GetUserID(name)
-  _, err := db.sql.Query("INSERT INTO login_token(uid, token, created) VALUES (?, ?, NOW())", uid, token)
+  rows, err := db.sql.Query("INSERT INTO login_token(uid, token, created) VALUES (?, ?, NOW())", uid, token)
   if (err != nil) {
     db.logger.Error(err.Error(), thisModule, 3)
   }
+  rows.Close()
+}
+
+func (db Database) GetToken(name string) string {
+  var token string
+  uid := db.GetUserID(name)
+  err := db.sql.QueryRow("SELECT token FROM login_token WHERE uid = ?", uid).Scan(&token)
+  if (err != nil) {
+    db.logger.Error(err.Error(), thisModule, 3)
+  }
+  return token
 }
 
 func WriteCache() {
