@@ -34,14 +34,8 @@ type DataPacket struct {
   } `json:"saviour"`
 }
 
-// clearLoginData clears login data after initial login packet
-func (packet DataPacket) clearLoginData() {
-  packet.Login.User = ""
-  packet.Login.Pass = ""
-}
-
 // genDataPacket
-func genDataPacket(token string, message string, status string, username string) []byte {
+func genDataPacket(token string, message string, status string, username string) ([]byte, DataPacket) {
   var packet DataPacket
   var buf []byte
   packet.Saviour.Token = token
@@ -53,7 +47,7 @@ func genDataPacket(token string, message string, status string, username string)
   if err != nil {
     logger.Error("ErrorMarshalPacket::" + err.Error(), thisModule, 3)
   }
-  return buf
+  return buf, packet
 }
 
 func loadDataPacket(buf []byte) DataPacket {
@@ -87,7 +81,6 @@ func sanitizeLogin(packet DataPacket) [2]string {
   }
   login[0] = packet.Login.User
   login[1] = packet.Login.Pass
-  packet.clearLoginData()
   return login
 }
 
@@ -101,7 +94,7 @@ func sanitizePacket(packet DataPacket) DataPacket {
     regex = regexp.MustCompile("[^a-zA-Z0-9]")
     packet.Saviour.Username = regex.ReplaceAllString(packet.Saviour.Username, "")
     packet.Saviour.Username = checkDataSize(packet.Saviour.Username,45)
-    regex = regexp.MustCompile(`[^A-Za-z0-9+\/=]`)
+    regex = regexp.MustCompile(`[^A-Za-z0-9+-\/=]`)
     packet.Saviour.Token = regex.ReplaceAllString(packet.Saviour.Token, "")
     packet.Saviour.Token = checkDataSize(packet.Saviour.Token,45)
     packet.Saviour.Message = regex.ReplaceAllString(packet.Saviour.Message, "")
@@ -164,17 +157,16 @@ func (sys System) loginRequest(w http.ResponseWriter, r *http.Request) {
   loginParam = sanitizeLogin(packet)
   sys.logger.SystemMessage("LoginAttempt::" + loginParam[0], thisModule)
   if !sys.db.CheckUser(loginParam[0], loginParam[1]) {
-    buf = genDataPacket("", "", "401", loginParam[0] )
+    buf, packet = genDataPacket("", "", "401", loginParam[0] )
     sys.logger.Error("LoginFailed", thisModule, 2)
   } else {
     if !sys.db.CheckToken(loginParam[0]) {
-      buf = genDataPacket(genToken(32), "Login::Successful", "200", loginParam[0])
+      buf, packet = genDataPacket(genToken(32), "Login::Successful", "200", loginParam[0])
       sys.logger.SystemMessage("GeneratedToken::" + packet.Saviour.Token, thisModule)
       sys.db.StoreToken(packet.Saviour.Username, packet.Saviour.Token)
-
       sys.logger.SystemMessage("LoginSuccessfulGenToken::" + loginParam[0], thisModule)
     } else {
-      buf = genDataPacket(sys.db.GetToken(loginParam[0]), "Login::SuccessFul", "200", loginParam[0])
+      buf, packet = genDataPacket(sys.db.GetToken(loginParam[0]), "Login::SuccessFul", "200", loginParam[0])
       sys.logger.SystemMessage("LoginSuccessful::" + loginParam[0], thisModule)
     }
   }

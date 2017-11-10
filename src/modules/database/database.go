@@ -105,10 +105,19 @@ func (db Database) CheckUser(name string, pass string) bool {
 }
 
 func (db Database) CreateUser(name string, pass string, email string) {
-  rows, err := db.sql.Query("INSERT INTO users (name, pass, mail, created) VALUES (?, ?, ?, NOW())", name, pass, email)
+  rows, err := db.sql.Query("INSERT INTO users (name, pass, mail) VALUES (?, ?, ?)", name, pass, email)
     if (err != nil) {
       db.logger.Error(err.Error(), thisModule, 3)
     }
+  rows.Close()
+}
+
+func (db Database) RemoveUser(name string) {
+  uid := db.GetUserID(name)
+  rows, err := db.sql.Query("DELETE FROM * WHERE uid = ?", uid)
+  if err != nil {
+    db.logger.Error(err.Error(), thisModule, 3)
+  }
   rows.Close()
 }
 
@@ -125,7 +134,7 @@ func (db Database) CheckToken(name string) bool {
   exists := false
   var token string
   uid := db.GetUserID(name)
-  err := db.sql.QueryRow("SELECT token FROM login_token where uid = ?", uid).Scan(&token)
+  err := db.sql.QueryRow("SELECT token FROM login_token WHERE uid = ?", uid).Scan(&token)
   switch {
   case err == sql.ErrNoRows:
     db.logger.Error("TokenNotFound", thisModule, 3)
@@ -139,7 +148,7 @@ func (db Database) CheckToken(name string) bool {
 
 func (db Database) StoreToken(name string, token string) {
   uid := db.GetUserID(name)
-  rows, err := db.sql.Query("INSERT INTO login_token(uid, token, created) VALUES (?, ?, NOW())", uid, token)
+  rows, err := db.sql.Query("INSERT INTO login_token(uid, token) VALUES (?, ?)", uid, token)
   if (err != nil) {
     db.logger.Error(err.Error(), thisModule, 3)
   }

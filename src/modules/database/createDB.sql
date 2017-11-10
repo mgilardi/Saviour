@@ -1,69 +1,152 @@
--- -----------------------------------------------------
--- Table `saviour`.'users'
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `saviour`.`users` (
-  `uid` INT NOT NULL AUTO_INCREMENT,
-  `name` VARCHAR(45) NULL,
-  `pass` VARCHAR(45) NULL,
-  `mail` VARCHAR(45) NULL,
-  `signature` VARCHAR(65) NULL,
-  `created` DATE NULL,
-  `access` VARCHAR(45) NULL,
-  `login` VARCHAR(45) NULL,
-  `status` VARCHAR(45) NULL,
-  `timezone` VARCHAR(45) NULL,
-  `language` VARCHAR(45) NULL,
-  `picture` VARCHAR(45) NULL,
-  PRIMARY KEY (`uid`),
-  INDEX (`uid`))
-  ENGINE = InnoDB;
+-- phpMyAdmin SQL Dump
+-- version 4.6.6deb4
+-- https://www.phpmyadmin.net/
+--
+-- Host: localhost:3306
+-- Generation Time: Nov 09, 2017 at 05:08 PM
+-- Server version: 5.7.20-0ubuntu0.17.04.1
+-- PHP Version: 7.0.22-0ubuntu0.17.04.1
 
--- -----------------------------------------------------
--- Table 'saviour.'sessions'
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `saviour`.`sessions` (
-  `uid` INT NOT NULL AUTO_INCREMENT,
-  `sid` VARCHAR(128) NOT NULL,
-  `ssid` VARCHAR(128) NULL,
-  `hostname` VARCHAR(128) NULL,
-  `timestamp` INT(11) NULL,
-  `cache` VARCHAR(45),
-  `sesssion` VARCHAR(45) NULL,
-  PRIMARY KEY (`uid`, `sid`),
-  INDEX (`uid`))
-  ENGINE = InnoDB;
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+SET time_zone = "+00:00";
 
--- -----------------------------------------------------
--- Table 'saviour.'users_roles'
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `saviour`.`user_roles` (
-  `uid` INT NOT NULL,
-  `rid` INT(11) NOT NULL,
-  PRIMARY KEY (`uid`,`rid`),
-  INDEX (`uid`, `rid`))
-  ENGINE = InnoDB;
+--
+-- Database: `saviour`
+--
+CREATE DATABASE IF NOT EXISTS `saviour` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;
+USE `saviour`;
 
--- -----------------------------------------------------
--- Table 'saviour.'role'
--- -----------------------------------------------------
+-- --------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS `saviour`.`role` (
-  `rid` INT(11) NOT NULL AUTO_INCREMENT,
-  `name` VARCHAR(64),
-  `weight` INT(11),
-  PRIMARY KEY (`rid`),
-  INDEX (`rid`))
-  ENGINE = InnoDB;
+--
+-- Table structure for table `login_token`
+--
 
--- -----------------------------------------------------
--- Table 'saviour.'token'
--- -----------------------------------------------------
+CREATE TABLE `login_token` (
+  `uid` int(11) NOT NULL,
+  `tid` int(11) NOT NULL,
+  `token` varchar(255) NOT NULL,
+  `created` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-CREATE TABLE IF NOT EXISTS `saviour`.`login_token` (
-  `uid` INT(11) NOT NULL,
-  `tid` INT(11) NOT NULL AUTO_INCREMENT,
-  `token` VARCHAR(40) NOT NULL UNIQUE,
-  `created` DATETIME NOT NULL,
-  PRIMARY KEY (`tid`),
-  INDEX (`uid`))
-  ENGINE = InnoDB;
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `role`
+--
+
+CREATE TABLE `role` (
+  `rid` int(11) NOT NULL,
+  `name` varchar(64) DEFAULT NULL,
+  `weight` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `sessions`
+--
+
+CREATE TABLE `sessions` (
+  `uid` int(11) NOT NULL,
+  `sid` varchar(128) NOT NULL,
+  `ssid` varchar(128) DEFAULT NULL,
+  `hostname` varchar(128) DEFAULT NULL,
+  `timestamp` int(11) DEFAULT NULL,
+  `cache` varchar(45) DEFAULT NULL,
+  `sesssion` varchar(45) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `user_roles`
+--
+
+CREATE TABLE `user_roles` (
+  `uid` int(11) NOT NULL,
+  `rid` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `users`
+--
+
+CREATE TABLE `users` (
+  `uid` int(11) NOT NULL,
+  `name` varchar(45) DEFAULT NULL,
+  `pass` varchar(45) DEFAULT NULL,
+  `mail` varchar(45) DEFAULT NULL,
+  `signature` varchar(65) DEFAULT NULL,
+  `created` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `access` varchar(45) DEFAULT NULL,
+  `login` varchar(45) DEFAULT NULL,
+  `status` varchar(45) DEFAULT NULL,
+  `timezone` varchar(45) DEFAULT NULL,
+  `language` varchar(45) DEFAULT NULL,
+  `picture` varchar(45) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+--
+-- Indexes for dumped tables
+--
+
+--
+-- Indexes for table `login_token`
+--
+ALTER TABLE `login_token`
+  ADD PRIMARY KEY (`tid`),
+  ADD KEY `uid` (`uid`);
+
+--
+-- Indexes for table `role`
+--
+ALTER TABLE `role`
+  ADD PRIMARY KEY (`rid`);
+
+--
+-- Indexes for table `sessions`
+--
+ALTER TABLE `sessions`
+  ADD PRIMARY KEY (`sid`) USING BTREE,
+  ADD KEY `uid` (`uid`);
+
+--
+-- Indexes for table `user_roles`
+--
+ALTER TABLE `user_roles`
+  ADD PRIMARY KEY (`rid`) USING BTREE,
+  ADD KEY `uid` (`uid`) USING BTREE;
+
+--
+-- Indexes for table `users`
+--
+ALTER TABLE `users`
+  ADD PRIMARY KEY (`uid`);
+
+--
+-- AUTO_INCREMENT for dumped tables
+--
+
+--
+-- AUTO_INCREMENT for table `login_token`
+--
+ALTER TABLE `login_token`
+  MODIFY `tid` int(11) NOT NULL AUTO_INCREMENT;
+--
+-- AUTO_INCREMENT for table `role`
+--
+ALTER TABLE `role`
+  MODIFY `rid` int(11) NOT NULL AUTO_INCREMENT;
+--
+-- AUTO_INCREMENT for table `sessions`
+--
+ALTER TABLE `sessions`
+  MODIFY `sid` int(11) NOT NULL AUTO_INCREMENT;
+--
+-- AUTO_INCREMENT for table `users`
+--
+ALTER TABLE `users`
+  MODIFY `uid` int(11) NOT NULL AUTO_INCREMENT;
