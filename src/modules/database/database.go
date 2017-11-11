@@ -89,10 +89,11 @@ func (db Database) createTables(currentTables []string) {
   db.logger.SystemMessage("Tables::Loaded", thisModule)
 }
 
-func (db Database) CheckUser(name string, pass string) bool {
+func (db Database) CheckUserLogin(name string, pass string) (bool,int) {
   var dbPass string
+  var uid int
   var verified = false
-  err := db.sql.QueryRow("SELECT pass FROM users WHERE name = ?",name).Scan(&dbPass)
+  err := db.sql.QueryRow("SELECT pass, uid FROM users WHERE name = ?",name).Scan(&dbPass, &uid)
   switch {
   case err == sql.ErrNoRows:
     db.logger.Error("UserNotFound", thisModule, 3)
@@ -101,7 +102,21 @@ func (db Database) CheckUser(name string, pass string) bool {
   case dbPass == pass:
     verified = true
   }
-  return verified
+  return verified, uid
+}
+
+func (db Database) CheckUserExits(name string) bool {
+  exists := false
+  _ , err := db.GetUserID(name)
+  switch {
+  case err == sql.ErrNoRows:
+    db.logger.Error("UserNotFound", thisModule, 3)
+  case err != nil:
+    db.logger.Error(err.Error(), thisModule, 3)
+  default:
+    exists = true
+  }
+  return exists
 }
 
 func (db Database) CreateUser(name string, pass string, email string) {
@@ -113,7 +128,7 @@ func (db Database) CreateUser(name string, pass string, email string) {
 }
 
 func (db Database) RemoveUser(name string) {
-  uid := db.GetUserID(name)
+  uid , err := db.GetUserID(name)
   rows, err := db.sql.Query("DELETE FROM * WHERE uid = ?", uid)
   if err != nil {
     db.logger.Error(err.Error(), thisModule, 3)
@@ -121,19 +136,32 @@ func (db Database) RemoveUser(name string) {
   rows.Close()
 }
 
-func (db Database) GetUserID(name string) int {
+func (db Database) GetUserID(name string) (int, error) {
   var uid int
   err := db.sql.QueryRow("SELECT uid FROM users WHERE name = ?", name).Scan(&uid)
   if (err !=nil) {
     db.logger.Error(err.Error(), thisModule, 3)
   }
-  return uid
+  return uid , err
 }
 
-func (db Database) CheckToken(name string) bool {
+func (db Database) GetUserMap(uid int) (map[string]string, error) {
+  var userData map[string]string
+  var name, email, token string
+  err := db.sql.QueryRow("SELECT name, mail, token FROM users JOIN login_token ON users.uid = login_token.uid AND users.uid = ?", uid).Scan(&name, &email, &token)
+  if err != nil {
+    db.logger.Error(err.Error(), thisModule, 3)
+  }
+  userData = make(map[string]string)
+  userData["name"] = name
+  userData["email"] = email
+  userData["token"] = token
+  return userData, err
+}
+
+func (db Database) CheckToken(uid int) bool {
   exists := false
   var token string
-  uid := db.GetUserID(name)
   err := db.sql.QueryRow("SELECT token FROM login_token WHERE uid = ?", uid).Scan(&token)
   switch {
   case err == sql.ErrNoRows:
@@ -146,8 +174,7 @@ func (db Database) CheckToken(name string) bool {
   return exists
 }
 
-func (db Database) StoreToken(name string, token string) {
-  uid := db.GetUserID(name)
+func (db Database) StoreToken(uid int, token string) {
   rows, err := db.sql.Query("INSERT INTO login_token(uid, token) VALUES (?, ?)", uid, token)
   if (err != nil) {
     db.logger.Error(err.Error(), thisModule, 3)
@@ -157,8 +184,8 @@ func (db Database) StoreToken(name string, token string) {
 
 func (db Database) GetToken(name string) string {
   var token string
-  uid := db.GetUserID(name)
-  err := db.sql.QueryRow("SELECT token FROM login_token WHERE uid = ?", uid).Scan(&token)
+  uid, err := db.GetUserID(name)
+  err = db.sql.QueryRow("SELECT token FROM login_token WHERE uid = ?", uid).Scan(&token)
   if (err != nil) {
     db.logger.Error(err.Error(), thisModule, 3)
   }

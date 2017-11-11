@@ -49,10 +49,9 @@ CREATE TABLE `role` (
 
 CREATE TABLE `sessions` (
   `uid` int(11) NOT NULL,
-  `sid` varchar(128) NOT NULL,
-  `ssid` varchar(128) DEFAULT NULL,
+  `sid` int(11) NOT NULL,
   `hostname` varchar(128) DEFAULT NULL,
-  `timestamp` int(11) DEFAULT NULL,
+  `timestamp` int(11) NULL DEFAULT CURRENT_TIMESTAMP,
   `cache` varchar(45) DEFAULT NULL,
   `sesssion` varchar(45) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
@@ -76,9 +75,9 @@ CREATE TABLE `user_roles` (
 
 CREATE TABLE `users` (
   `uid` int(11) NOT NULL,
-  `name` varchar(45) DEFAULT NULL,
-  `pass` varchar(45) DEFAULT NULL,
-  `mail` varchar(45) DEFAULT NULL,
+  `name` varchar(45) NOT NULL UNIQUE,
+  `pass` varchar(45) NOT NULL,
+  `mail` varchar(45) NOT NULL UNIQUE,
   `signature` varchar(65) DEFAULT NULL,
   `created` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `access` varchar(45) DEFAULT NULL,
@@ -86,36 +85,35 @@ CREATE TABLE `users` (
   `status` varchar(45) DEFAULT NULL,
   `timezone` varchar(45) DEFAULT NULL,
   `language` varchar(45) DEFAULT NULL,
-  `picture` varchar(45) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-
---
--- Indexes for dumped tables
---
 
 --
 -- Indexes for table `login_token`
 --
+
 ALTER TABLE `login_token`
-  ADD PRIMARY KEY (`tid`),
-  ADD KEY `uid` (`uid`);
+  ADD PRIMARY KEY (`tid`) USING BTREE,
+  ADD KEY `uid` (`uid`) USING BTREE;
 
 --
 -- Indexes for table `role`
 --
+
 ALTER TABLE `role`
-  ADD PRIMARY KEY (`rid`);
+  ADD PRIMARY KEY (`rid`) USING BTREE;
 
 --
 -- Indexes for table `sessions`
 --
+
 ALTER TABLE `sessions`
   ADD PRIMARY KEY (`sid`) USING BTREE,
-  ADD KEY `uid` (`uid`);
+  ADD KEY `uid` (`uid`) USING BTREE;
 
 --
 -- Indexes for table `user_roles`
 --
+
 ALTER TABLE `user_roles`
   ADD PRIMARY KEY (`rid`) USING BTREE,
   ADD KEY `uid` (`uid`) USING BTREE;
@@ -123,30 +121,34 @@ ALTER TABLE `user_roles`
 --
 -- Indexes for table `users`
 --
-ALTER TABLE `users`
-  ADD PRIMARY KEY (`uid`);
 
---
--- AUTO_INCREMENT for dumped tables
---
+ALTER TABLE `users`
+  ADD PRIMARY KEY (`uid`) USING BTREE;
 
 --
 -- AUTO_INCREMENT for table `login_token`
 --
+
 ALTER TABLE `login_token`
   MODIFY `tid` int(11) NOT NULL AUTO_INCREMENT;
+
 --
 -- AUTO_INCREMENT for table `role`
 --
+
 ALTER TABLE `role`
   MODIFY `rid` int(11) NOT NULL AUTO_INCREMENT;
+
 --
 -- AUTO_INCREMENT for table `sessions`
 --
+
 ALTER TABLE `sessions`
   MODIFY `sid` int(11) NOT NULL AUTO_INCREMENT;
+
 --
 -- AUTO_INCREMENT for table `users`
 --
+
 ALTER TABLE `users`
   MODIFY `uid` int(11) NOT NULL AUTO_INCREMENT;
