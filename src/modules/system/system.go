@@ -133,13 +133,13 @@ func InitSystem(conf *[]config.Setting, datab *database.Database, log *logger.Lo
  sys.startServ()
 }
 
-func (sys System) startServ() {
+func (sys *System) startServ() {
   sys.handleRequest()
 }
 
 // handleRequest sets up router for different webpage requests and redirects them to there function
 // ListenAndServ starts the server listing on port
-func (sys System) handleRequest() {
+func (sys *System) handleRequest() {
   servRouter := mux.NewRouter()
   servRouter.HandleFunc("/", sys.indexPage)
   servRouter.HandleFunc("/login", sys.loginRequest).Methods("POST")
@@ -147,13 +147,13 @@ func (sys System) handleRequest() {
 }
 
 // indexPage handles index page
-func (sys System) indexPage( w http.ResponseWriter, r *http.Request) {
+func (sys *System) indexPage( w http.ResponseWriter, r *http.Request) {
   fmt.Fprintf(w,"Request_UserLogin:")
   fmt.Println("ReceivedRequest")
 }
 
 // createRequest handles user creation/registration
-func (sys System) createRequest(w http.ResponseWriter, r *http.Request) {
+func (sys *System) createRequest(w http.ResponseWriter, r *http.Request) {
   var packet DataPacket
   var loginParam [3]string
   var buf []byte
@@ -167,7 +167,7 @@ func (sys System) createRequest(w http.ResponseWriter, r *http.Request) {
 // error, if user is already in the connected users map and marked as loggedIn the request will return a
 // UserAlreadyLoggedIn error, if the username and password is correct it will return the json including the token,
 // a status of 100, the username and a message of LoginSuccessful.
-func (sys System) loginRequest(w http.ResponseWriter, r *http.Request) {
+func (sys *System) loginRequest(w http.ResponseWriter, r *http.Request) {
   var packet DataPacket
   var loginParam [3]string
   var buf []byte
@@ -183,12 +183,12 @@ func (sys System) loginRequest(w http.ResponseWriter, r *http.Request) {
       buf = genDataPacket("", "UserAlreadyLoggedIn", status, loginParam[0])
       sys.logger.SystemMessage("LoginFailed::UserLoggedIn::"+loginParam[0], thisModule)
     } else {
-      status = 100
+      status = 200
       if !exists {
         currentUser = user.InitUser(uid, sys.db)
         sys.conUsers[currentUser.GetName()] = currentUser
       }
-      currentUser.LogOn()
+      currentUser.SetOnline(true)
       buf = genDataPacket(currentUser.GetToken(), "LoginSuccessful", status, currentUser.GetName())
       sys.logger.SystemMessage("LoginSuccessful::"+currentUser.GetName(), thisModule)
     }
@@ -196,6 +196,7 @@ func (sys System) loginRequest(w http.ResponseWriter, r *http.Request) {
     buf = genDataPacket("", "UserNotFound", status, loginParam[0])
     sys.logger.SystemMessage("LoginFailed::UserNotFound::" + loginParam[0], thisModule)
   }
+  w.Header().Set("Content-Type", "application/json")
   w.WriteHeader(status)
   w.Write(buf)
 }

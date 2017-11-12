@@ -21,35 +21,38 @@ func InitUser(id int, db *database.Database) *User {
   user.db = db
   user.CheckToken()
   user.userMap, err = user.db.GetUserMap(user.uid)
-  user.online = true
   if err != nil {
     //
   }
   return &user
 }
 
-func (user User) CheckToken() {
+func (user *User) CheckToken() {
   if !user.db.CheckToken(user.uid) {
     user.db.StoreToken(user.uid, genToken(32))
   }
 }
 
-func (user User) GetName() string {
+func (user *User) GetName() string {
   return user.userMap["name"]
 }
 
-func (user User) GetToken() string {
+func (user *User) GetToken() string {
   return user.userMap["token"]
 }
 
-func (user User) IsOnline() bool {
+func (user *User) SetToken() {
+  token := genToken(32)
+  user.userMap["token"] = token
+  user.db.StoreToken(user.uid, token)
+}
+
+func (user *User) IsOnline() bool {
   return user.online
 }
-func (user User) LogOn() {
-  user.online = true
-}
-func (user User) LogOff() {
-  user.online = false
+
+func (user *User) SetOnline( isOnline bool) {
+  user.online = isOnline
 }
 
 func genToken(length int) string {
