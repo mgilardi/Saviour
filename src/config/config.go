@@ -5,98 +5,54 @@
 package config
 
 import (
-        "os"
         "encoding/json"
         "io/ioutil"
-        "errors"
-        "fmt"
+        "strings"
+        "modules/logger"
 )
 
 const (
   thisModule = "Config"
 )
 
-//Setting stores the id of the module and a map of the imported keys and values
-type Setting struct {
-  id int
-  setMap map[string]interface{}
-}
-
-// initSetting is a constructor for the config object initSetting(pathtofile, idofmodule)
-// returns an array of config objects for each module.
-func initSetting(path string, id int) (error, Setting) {
-  var options Setting
-  options.id = id
-  options.setMap = make(map[string]interface{})
-  options.setMap["path"] = path
-  err := options.LoadFile()
-  return err, options
-}
-
-// LoadFile loads the JSON settings file for this specific module.
-func (options *Setting) LoadFile() error {
-  raw, err := ioutil.ReadFile(options.setMap["path"].(string))
-  err = json.Unmarshal(raw, &options.setMap)
-  return err
-}
-
-// FindValue returns a value from the setting map
-func (options *Setting) FindValue(key string) interface{} {
-  value := options.setMap[key]
-  return value
-}
-
-// GetSettings loads settings from each module creates an array of config objects
-// with a setting map for each module. It returns a pointer to the assembled object
-// array.
-func GetSettings() *[]Setting {
-  settings := make([]Setting, 0)
-  files, err := ioutil.ReadDir("modules")
-  if (err != nil) {
-    fmt.Println("Error::Config::CannotReadDirectory")
-    fmt.Println("Error::Config::" + err.Error())
-    os.Exit(1)
+// GetOptions returns an map with the loaded options from the json settings file
+func GetOptions(module string) map[string]interface{} {
+  optionsMap := make(map[string]interface{})
+  optionsMap["path"] = "modules/" + strings.ToLower(module) + "/settings.json"
+  raw, err := ioutil.ReadFile(optionsMap["path"].(string))
+  if err != nil {
+    logger.Error(err.Error(), thisModule, 3)
+    logger.Error("FailedReadFile", thisModule, 1)
   }
-  for i, file := range files {
-    err, setting := initSetting("modules/" + file.Name() + "/settings.json", i)
-    if (err != nil) {
-     fmt.Println("Error::Config::CannotLoadSettings")
-     fmt.Println("Error::Config::" + err.Error())
-    } else {
-      settings = append(settings, setting)
-    }
+  err = json.Unmarshal(raw, &optionsMap)
+  if err != nil {
+    logger.Error(err.Error(), thisModule, 3)
+    logger.Error("FailedJSONUNMARSHAL", thisModule, 1)
   }
-  return &settings
+  return optionsMap
 }
 
-// GetSettingModule takes in the array of Setting and gives back the element for the
-// specified module.
-func GetSettingModule(module string, options *[]Setting) (error, *Setting) {
-  var err error
-  var set Setting
-  var check string
-  for _, opt := range *options {
-    if opt.setMap["Name"] == module {
-      set = opt
-      check = opt.setMap["Name"].(string)
-      break
-    }
+// GetAllOptions returns a array of maps with the loaded settings.json files for each module
+func GetAllOptions() []map[string]interface{} {
+  var optionArray []map[string]interface{}
+  var currentModule map[string]interface{}
+  dir, err := ioutil.ReadDir("modules")
+  if err != nil {
+    logger.Error(err.Error(), thisModule, 3)
+    logger.Error("FailedReadDir", thisModule, 1)
   }
-  if (check == "") {
-    err = errors.New("ModuleNotFound")
+  for _, file := range dir {
+    currentModule = GetOptions(file.Name())
+    optionArray = append(optionArray, currentModule)
   }
-  return err, &set
+  return optionArray
 }
 
-// FileValue returns a setting key from the setting array
+
+// FileValue returns a value of a module
 func FindValue(module string, key string) interface{} {
   var output interface{}
-  options := GetSettings()
-  for _, opt := range *options {
-    if (opt.setMap["Name"] == module) {
-      output = opt.FindValue(key)
-      break
-    }
-  }
+  optionsMap := GetOptions(module)
+  output = optionsMap[key]
   return output
 }
