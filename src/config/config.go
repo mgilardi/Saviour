@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"log"
+	"os"
 	"strings"
 )
 
@@ -18,8 +19,9 @@ const (
 // GetOptions returns an map with the loaded options from the json settings file
 func GetOptions(module string) map[string]interface{} {
 	optionsMap := make(map[string]interface{})
-	optionsMap["path"] = "modules/" + strings.ToLower(module) + "/settings.json"
-	raw, err := ioutil.ReadFile(optionsMap["path"].(string))
+	optionsMap["Path"] = os.Getenv("GOPATH") + "/src/modules/" +
+		strings.ToLower(module) + "/settings.json"
+	raw, err := ioutil.ReadFile(optionsMap["Path"].(string))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -34,7 +36,7 @@ func GetOptions(module string) map[string]interface{} {
 func GetAllOptions() []map[string]interface{} {
 	var optionArray []map[string]interface{}
 	var currentModule map[string]interface{}
-	dir, err := ioutil.ReadDir("modules")
+	dir, err := ioutil.ReadDir(os.Getenv("GOPATH") + "/src/modules")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -45,7 +47,7 @@ func GetAllOptions() []map[string]interface{} {
 	return optionArray
 }
 
-// FileValue returns a value of a module
+// FindValue returns a value of a module
 func FindValue(module string, key string) interface{} {
 	var output interface{}
 	optionsMap := GetOptions(module)

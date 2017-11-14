@@ -10,29 +10,13 @@ package config
 
 FUNCTIONS
 
-func FindValue(module string, key string) (error, string)
-    FileValue returns a setting key from the setting array, if no value is
-    found it returns an error.
+func FindValue(module string, key string) interface{}
+    FindValue returns a value of a module
 
-func GetSettingModule(module string, options *[]Setting) (error, *Setting)
-    GetSettingModule takes in the array of Setting and gives back the
-    element for the specified module.
+func GetAllOptions() []map[string]interface{}
+    GetAllOptions returns a array of maps with the loaded settings.json
+    files for each module
 
-func GetSettings() *[]Setting
-    GetSettings loads settings from each module creates an array of config
-    objects with a setting map for each module. It returns a pointer to the
-    assembled object array.
-
-TYPES
-
-type Setting struct {
-    // contains filtered or unexported fields
-}
-    Setting stores the id of the module and a map of the imported keys and
-    values
-
-func (options *Setting) FindValue(key string) (error, string)
-    FindValue returns a value from the setting map
-
-func (options *Setting) LoadFile() error
-    LoadFile loads the JSON settings file for this specific module.
+func GetOptions(module string) map[string]interface{}
+    GetOptions returns an map with the loaded options from the json settings
+    file

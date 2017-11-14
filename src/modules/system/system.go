@@ -40,7 +40,6 @@ func genDataPacket(token string, message string, status int, username string) []
 	packet.Saviour.Message = message
 	packet.Saviour.Status = status
 	packet.Saviour.Username = username
-	packet = sanitizePacket(packet)
 	buf, err := json.Marshal(&packet)
 	if err != nil {
 		logger.Error("ErrorMarshalPacket::"+err.Error(), thisModule, 3)
@@ -73,7 +72,7 @@ func InitSystem(datab *database.Database, cache *database.Cache) {
 	sys.conUsers = make(map[string]*user.User)
 	sys.db = datab
 	sys.cache = cache
-	logger.SystemMessage("Starting::Server", thisModule)
+	logger.SystemMessage("Starting", thisModule)
 	exists, options := sys.cache.GetCacheMap("system:config")
 	if exists {
 		sys.hostname = options["Hostname"].(string)
@@ -116,7 +115,7 @@ func (sys *System) createRequest(w http.ResponseWriter, r *http.Request) {
 // loginRequest handles initial login, if user is not found or password is incorrect it will return a UserNotFound
 // error, if user is already in the connected users map and marked as loggedIn the request will return a
 // UserAlreadyLoggedIn error, if the username and password is correct it will return the json including the token,
-// a status of 100, the username and a message of LoginSuccessful.
+// a status of 200, the username and a message of LoginSuccessful.
 func (sys *System) loginRequest(w http.ResponseWriter, r *http.Request) {
 	var packet DataPacket
 	var loginParam [3]string

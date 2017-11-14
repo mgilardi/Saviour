@@ -7,7 +7,8 @@ import (
 	"config"
 	"database/sql"
 	"modules/logger"
-
+	"time"
+	// MySql
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -88,6 +89,9 @@ func (db *Database) createTables(currentTables []string) {
 	logger.SystemMessage("Tables::Loaded", thisModule)
 }
 
+// CheckUserLogin inputs username and password and checks if it matches
+// the database returns a boolean if the user if found along with the
+// users database uid
 func (db *Database) CheckUserLogin(name string, pass string) (bool, int) {
 	var dbPass string
 	var uid int
@@ -104,6 +108,8 @@ func (db *Database) CheckUserLogin(name string, pass string) (bool, int) {
 	return verified, uid
 }
 
+// CheckUserExits checks the database for a username and returns true or false
+// if it exists
 func (db *Database) CheckUserExits(name string) bool {
 	exists := false
 	_, err := db.GetUserID(name)
@@ -118,6 +124,7 @@ func (db *Database) CheckUserExits(name string) bool {
 	return exists
 }
 
+// CreateUser creates a new user entry in the database
 func (db *Database) CreateUser(name string, pass string, email string) {
 	_, err := db.sql.Exec(`INSERT INTO users (name, pass, mail) VALUES (?, ?, ?)`, name, pass, email)
 	if err != nil {
@@ -125,6 +132,7 @@ func (db *Database) CreateUser(name string, pass string, email string) {
 	}
 }
 
+// RemoveUser removes a user entry from the database
 func (db *Database) RemoveUser(name string) {
 	uid, err := db.GetUserID(name)
 	rows, err := db.sql.Query(`DELETE FROM * WHERE uid = ?`, uid)
@@ -134,6 +142,7 @@ func (db *Database) RemoveUser(name string) {
 	rows.Close()
 }
 
+// GetUserID will return the database uid for a username
 func (db *Database) GetUserID(name string) (int, error) {
 	var uid int
 	err := db.sql.QueryRow("SELECT uid FROM users WHERE name = ?", name).Scan(&uid)
@@ -143,6 +152,8 @@ func (db *Database) GetUserID(name string) (int, error) {
 	return uid, err
 }
 
+// GetUserMap loads user information from the database and returns it
+// inside of a map
 func (db *Database) GetUserMap(uid int) (map[string]interface{}, error) {
 	var userData map[string]interface{}
 	var name, email, token string
@@ -157,6 +168,7 @@ func (db *Database) GetUserMap(uid int) (map[string]interface{}, error) {
 	return userData, err
 }
 
+// CheckToken checks if the user has a token in the database login_token table
 func (db *Database) CheckToken(uid int) bool {
 	exists := false
 	var token string
@@ -172,6 +184,7 @@ func (db *Database) CheckToken(uid int) bool {
 	return exists
 }
 
+// StoreToken writes user token to the database
 func (db *Database) StoreToken(uid int, token string) {
 	_, err := db.sql.Exec(`INSERT INTO login_token(uid, token) VALUES (?, ?)`, uid, token)
 	if err != nil {
@@ -179,7 +192,8 @@ func (db *Database) StoreToken(uid int, token string) {
 	}
 }
 
-func (db *Database) WriteCache(cid string, data []byte, expires bool) {
+// WriteCache creates a new cache entry
+func (db *Database) WriteCache(cid string, data []byte) {
 	_, err := db.sql.Exec(`INSERT INTO cache (cid, data) VALUES (?, ?)`+
 		`ON DUPLICATE KEY UPDATE data = ?`, cid, data, data)
 	if err != nil {
@@ -187,6 +201,16 @@ func (db *Database) WriteCache(cid string, data []byte, expires bool) {
 	}
 }
 
+// WriteCacheExp creates a new cache entry that expires
+func (db *Database) WriteCacheExp(cid string, data []byte, expires int64) {
+	_, err := db.sql.Exec(`INSERT INTO cache (cid, data, expires) VALUES (?, ?, ?)`+
+		`ON DUPLICATE KEY UPDATE data = ?`, cid, data, expires, data)
+	if err != nil {
+		logger.Error(err.Error(), thisModule, 3)
+	}
+}
+
+// ReadCache returns a cache entry
 func (db *Database) ReadCache(cid string) []byte {
 	var data []byte
 	err := db.sql.QueryRow(`SELECT data FROM cache WHERE cid = ?`, cid).Scan(&data)
@@ -194,4 +218,33 @@ func (db *Database) ReadCache(cid string) []byte {
 		logger.Error(err.Error(), thisModule, 3)
 	}
 	return data
+}
+
+// ClearCache clears all records in cache table
+func (db *Database) ClearCache() {
+	_, err := db.sql.Exec(`DELETE FROM cache`)
+	if err != nil {
+		//
+	}
+}
+
+// CheckCache iterates through cache records checks if the record is expired
+// if the record is expired the record is deleted, if the record has NULL for
+// a value it is permanent and is skipped, if the record has not expired it is skipped
+func (db *Database) CheckCache() {
+	var cid string
+	var expires sql.NullInt64
+	rows, err := db.sql.Query(`SELECT cid, expires FROM cache`)
+	if err != nil {
+		//
+	}
+	for rows.Next() {
+		rows.Scan(&cid, &expires)
+		if expires.Valid && expires.Int64 < time.Now().Unix() {
+			_, err := db.sql.Exec(`DELETE FROM cache WHERE cid = ?`, cid)
+			if err != nil {
+				//
+			}
+		}
+	}
 }

@@ -8,14 +8,16 @@ import (
 	"strconv"
 )
 
+// User handles users
 type User struct {
-	uid                int
-	name, token, email string
-	db                 *database.Database
-	cache              *database.Cache
-	online             bool
+	uid         int
+	name, token string
+	db          *database.Database
+	cache       *database.Cache
+	online      bool
 }
 
+// InitUser constructs the user on initial login
 func InitUser(id int, db *database.Database, cache *database.Cache) *User {
 	var user User
 	user.uid = id
@@ -26,19 +28,23 @@ func InitUser(id int, db *database.Database, cache *database.Cache) *User {
 	return &user
 }
 
+// CheckToken checks to see if a token exists in the database if not
+// it generates one.
 func (user *User) CheckToken() {
 	if !user.db.CheckToken(user.uid) {
 		user.db.StoreToken(user.uid, genToken(32))
 	}
 }
 
+// InfoUpdate calls for the username and token from the database to be
+// held in memory
 func (user *User) InfoUpdate() {
 	userInfo := user.GetInfoMap()
 	user.name = userInfo["Name"].(string)
 	user.token = userInfo["Token"].(string)
-	user.email = userInfo["Email"].(string)
 }
 
+// GetInfoMap retrieves the loaded infomap from the database
 func (user *User) GetInfoMap() map[string]interface{} {
 	exists, userInfo := user.cache.GetCacheMap("user:" + strconv.Itoa(user.uid) + ":" + "info")
 	if !exists {
@@ -47,36 +53,39 @@ func (user *User) GetInfoMap() map[string]interface{} {
 		if err != nil {
 
 		}
-		user.cache.SetCacheMap("user:"+strconv.Itoa(user.uid)+":"+"info", userInfo, false)
+		user.cache.SetCacheMap("user:"+strconv.Itoa(user.uid)+":"+"info", userInfo, true)
 	}
 	return userInfo
 }
 
+// GetName returns username
 func (user *User) GetName() string {
 	return user.name
 }
 
+// GetToken returns user token
 func (user *User) GetToken() string {
 	return user.token
 }
 
-func (user *User) GetEmail() string {
-	return user.email
-}
-
+// SetToken generates a new token and writes it to DB
 func (user *User) SetToken() {
 	token := genToken(32)
 	user.db.StoreToken(user.uid, token)
+	user.InfoUpdate()
 }
 
+// IsOnline returns the online flag for the user
 func (user *User) IsOnline() bool {
 	return user.online
 }
 
+// SetOnline will set the flag to the input
 func (user *User) SetOnline(isOnline bool) {
 	user.online = isOnline
 }
 
+// genToken generates user token of specified length
 func genToken(length int) string {
 	byte := make([]byte, length)
 	_, err := rand.Read(byte)

@@ -1,38 +1,35 @@
 package config_test
 
 import (
-  "testing"
-  "config"
+	"config"
+	"fmt"
+	"testing"
 )
 
-func TestGetSettings(t *testing.T) {
-  options := config.GetSettings()
-  for _, opt := range *options {
-    name := opt.FindValue("Name")
-    if name == nil {
-      t.Errorf("ValueIsNull")
-    }
-    if name == "" {
-      t.Errorf("GetSettings() Failed")
-    }
-  }
+func TestGetOptions(t *testing.T) {
+	options := config.GetOptions("Database")
+	if options["Name"].(string) == "Database" {
+		fmt.Println("Testing::" + options["Name"].(string))
+	} else {
+		t.Errorf("CouldNotLoadModule")
+	}
+}
+
+func TestGetAllOptions(t *testing.T) {
+	optionsArray := config.GetAllOptions()
+	for _, opt := range optionsArray {
+		if opt["Name"].(string) == "" {
+			t.Errorf("CouldNotLoadModule")
+		}
+	}
 }
 
 func TestFindValuePass(t *testing.T) {
-  value := config.FindValue("Access", "Name")
-  if value == nil {
-    t.Errorf("ValueIsNull")
-  }
-  if value.(string) == "" {
-    t.Errorf("Could Not Get Value")
-  }
-}
-
-func TestFindValueFail(t *testing.T) {
-  value := config.FindValue("Test", "Test")
-  if value == nil {
-    // good
-  } else {
-    t.Errorf("FindValue::KeyFound::" + value.(string))
-  }
+	value := config.FindValue("Access", "Name")
+	if value == nil {
+		t.Errorf("ValueIsNull")
+	}
+	if value.(string) == "" {
+		t.Errorf("Could Not Get Value")
+	}
 }
