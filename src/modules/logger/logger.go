@@ -4,32 +4,25 @@
 package logger
 
 import (
-  "fmt"
-  //"config"
-  "os"
+	"fmt"
+	"os"
 )
 
 const (
-  thisModule = "Logger"
-  typeRequest = "LogType"
-  logLevelRequest = "LogLevel"
-  sysLevelRequest = "SysLevel"
-)
-
-var (
-  logType = 3
-  logLevel = 3
-  sysLevel = 3
+	thisModule      = "Logger"
+	typeRequest     = "LogType"
+	logLevelRequest = "LogLevel"
+	sysLevelRequest = "SysLevel"
 )
 
 func SystemMessage(message string, module string) {
-  fmt.Println("Saviour::" + module + "::" + message)
+	fmt.Println("Saviour::" + module + "::" + message)
 }
 
 // Error outputs a assembled error message to the console
 func Error(message string, module string, level int) {
-  fmt.Println("Error::" + module + "::" + message)
-  if (level == 1) {
-    os.Exit(1)
-  }
+	fmt.Println("Error::" + module + "::" + message)
+	if level == 1 {
+		os.Exit(1)
+	}
 }

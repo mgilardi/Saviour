@@ -1,4 +1,6 @@
 {
 	"Name": "System",
-	"Disabled": "False"
+	"Disabled": "False",
+  "Hostname": "localhost",
+  "Port":  "8080"
 }

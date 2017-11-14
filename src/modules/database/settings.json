@@ -1,6 +1,7 @@
 {
 	"Name": "Database",
-    "Disabled": "False",
+  "Disabled": "False",
 	"User": "saviour",
-	"Pass": "Wlzv1iwFSV0W6cL4"
+	"Pass": "Wlzv1iwFSV0W6cL4",
+  "ExpireTime": 10
 }

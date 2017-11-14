@@ -4,19 +4,18 @@ This is the beginning entry point for the Saviour Server
 package main
 
 import (
-  "modules/database"
-  "modules/cache"
-  "modules/system"
-  "modules/logger"
+	"modules/database"
+	"modules/logger"
+	"modules/system"
 )
 
 const (
-  thisModule = "Main"
+	thisModule = "Main"
 )
 
 func main() {
-  logger.SystemMessage("Starting", "")
-  db := database.InitDatabase()
-  loadedCache := cache.InitCache(db)
-  system.InitSystem(db, loadedCache)
+	logger.SystemMessage("Starting", "")
+	db := database.InitDatabase()
+	cache := database.InitCache(db)
+	system.InitSystem(db, cache)
 }
