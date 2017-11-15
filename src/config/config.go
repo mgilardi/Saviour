@@ -7,7 +7,7 @@ package config
 import (
 	"encoding/json"
 	"io/ioutil"
-	"log"
+	"modules/debug"
 	"os"
 	"strings"
 )
@@ -23,11 +23,11 @@ func GetOptions(module string) map[string]interface{} {
 		strings.ToLower(module) + "/settings.json"
 	raw, err := ioutil.ReadFile(optionsMap["Path"].(string))
 	if err != nil {
-		log.Fatal(err)
+		debug.Dbg.Err(err, thisModule, 1)
 	}
 	err = json.Unmarshal(raw, &optionsMap)
 	if err != nil {
-		log.Fatal(err)
+		debug.Dbg.Err(err, thisModule, 1)
 	}
 	return optionsMap
 }
@@ -38,7 +38,7 @@ func GetAllOptions() []map[string]interface{} {
 	var currentModule map[string]interface{}
 	dir, err := ioutil.ReadDir(os.Getenv("GOPATH") + "/src/modules")
 	if err != nil {
-		log.Fatal(err)
+		debug.Dbg.Err(err, thisModule, 1)
 	}
 	for _, file := range dir {
 		currentModule = GetOptions(file.Name())

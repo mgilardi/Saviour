@@ -3,11 +3,12 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Nov 13, 2017 at 08:14 PM
+-- Generation Time: Nov 15, 2017 at 01:06 AM
 -- Server version: 5.7.20-0ubuntu0.17.04.1
 -- PHP Version: 7.0.22-0ubuntu0.17.04.1
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+SET time_zone = "+00:00";
 
 --
 -- Database: `saviour`
@@ -28,6 +29,21 @@ CREATE TABLE `cache` (
   `created` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `expires` int(11) DEFAULT NULL COMMENT 'Unix Time When Expires When NULL never expires'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='Cache Table takes in converted blob';
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `logger`
+--
+
+DROP TABLE IF EXISTS `logger`;
+CREATE TABLE `logger` (
+  `lid` int(11) NOT NULL COMMENT 'Log Primary Key',
+  `type` varchar(6) NOT NULL COMMENT 'Log Type: Status, Warn, Error, Fatal',
+  `module` varchar(20) NOT NULL COMMENT 'Module The Error Originated',
+  `message` varchar(255) NOT NULL,
+  `timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 -- --------------------------------------------------------
 
@@ -99,8 +115,9 @@ CREATE TABLE `users` (
 -- Dumping data for table `users`
 --
 
-INSERT INTO `users` (`uid`, `name`, `pass`, `mail`, `signature`, `created`, `access`, `login`, `status`, `timezone`, `language`, `picture`) VALUES
-(1, 'Admin', 'Password', 'ian@diycardsecurity.com', NULL, '2017-11-09 17:12:23', NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO `users` (`uid`, `name`, `pass`, `mail`, `signature`, `created`, `access`, `login`,
+  `status`, `timezone`, `language`, `picture`)VALUES(1, 'Admin', 'Password', 'admin@diycardsecurity.com',
+     NULL, '2017-11-10 00:12:23', NULL, NULL, NULL, NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -123,6 +140,14 @@ CREATE TABLE `user_roles` (
 --
 ALTER TABLE `cache`
   ADD PRIMARY KEY (`cid`);
+
+--
+-- Indexes for table `logger`
+--
+ALTER TABLE `logger`
+  ADD PRIMARY KEY (`lid`),
+  ADD KEY `type_index` (`type`),
+  ADD KEY `module_index` (`module`);
 
 --
 -- Indexes for table `login_token`
@@ -158,14 +183,15 @@ ALTER TABLE `user_roles`
   ADD KEY `uid` (`uid`) USING BTREE;
 
 --
--- AUTO_INCREMENT for dumped tables
+-- AUTO_INCREMENT for table `logger`
 --
-
+ALTER TABLE `logger`
+  MODIFY `lid` int(11) NOT NULL AUTO_INCREMENT COMMENT 'Log Primary Key';
 --
 -- AUTO_INCREMENT for table `login_token`
 --
 ALTER TABLE `login_token`
-  MODIFY `tid` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
+  MODIFY `tid` int(11) NOT NULL AUTO_INCREMENT;
 --
 -- AUTO_INCREMENT for table `role`
 --
@@ -180,4 +206,4 @@ ALTER TABLE `sessions`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `uid` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `uid` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;

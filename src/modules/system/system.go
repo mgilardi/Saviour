@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"modules/database"
-	"modules/logger"
+	"modules/debug"
 	"modules/user"
 	"net/http"
 
@@ -42,7 +42,8 @@ func genDataPacket(token string, message string, status int, username string) []
 	packet.Saviour.Username = username
 	buf, err := json.Marshal(&packet)
 	if err != nil {
-		logger.Error("ErrorMarshalPacket::"+err.Error(), thisModule, 3)
+		database.LogDB.Err(err, thisModule)
+		debug.Dbg.Err(err, thisModule, 3)
 	}
 	return buf
 }
@@ -52,7 +53,8 @@ func loadDataPacket(buf []byte) DataPacket {
 	var packet DataPacket
 	err := json.Unmarshal(buf, &packet)
 	if err != nil {
-		logger.Error("ErrorUnmarshalPacket::"+err.Error(), thisModule, 3)
+		database.LogDB.Err(err, thisModule)
+		debug.Dbg.Err(err, thisModule, 3)
 	}
 	return sanitizePacket(packet)
 }
@@ -67,17 +69,17 @@ type System struct {
 }
 
 // InitSystem initialize system
-func InitSystem(datab *database.Database, cache *database.Cache) {
+func InitSystem(datab *database.Database) {
 	var sys System
 	sys.conUsers = make(map[string]*user.User)
 	sys.db = datab
-	sys.cache = cache
-	logger.SystemMessage("Starting", thisModule)
+	sys.cache = database.DBCache
+	debug.Dbg.Sys("Starting", thisModule)
 	exists, options := sys.cache.GetCacheMap("system:config")
 	if exists {
 		sys.hostname = options["Hostname"].(string)
 		sys.port = options["Port"].(string)
-		logger.SystemMessage("LoadedConfigFromCache::"+options["Name"].(string), thisModule)
+		debug.Dbg.Sys("LoadedConfigFromCache::"+options["Name"].(string), thisModule)
 	}
 	sys.startServ()
 }
@@ -92,7 +94,7 @@ func (sys *System) handleRequest() {
 	servRouter := mux.NewRouter()
 	servRouter.HandleFunc("/", sys.indexPage)
 	servRouter.HandleFunc("/login", sys.loginRequest).Methods("POST")
-	logger.Error(http.ListenAndServe(sys.hostname+":"+sys.port, servRouter).Error(), thisModule, 1)
+	debug.Dbg.Err(http.ListenAndServe(sys.hostname+":"+sys.port, servRouter), thisModule, 1)
 }
 
 // indexPage handles index page
@@ -109,7 +111,7 @@ func (sys *System) createRequest(w http.ResponseWriter, r *http.Request) {
 	buf, _ = ioutil.ReadAll(r.Body)
 	packet = loadDataPacket(buf)
 	loginParam = sanitizeLogin(packet)
-	logger.SystemMessage("CreatingUser::"+loginParam[0], thisModule)
+	debug.Dbg.Sys("CreatingUser::"+loginParam[0], thisModule)
 }
 
 // loginRequest handles initial login, if user is not found or password is incorrect it will return a UserNotFound
@@ -126,13 +128,13 @@ func (sys *System) loginRequest(w http.ResponseWriter, r *http.Request) {
 	buf, _ = ioutil.ReadAll(r.Body)
 	packet = loadDataPacket(buf)
 	loginParam = sanitizeLogin(packet)
-	logger.SystemMessage("LoginAttempt::"+loginParam[0], thisModule)
+	debug.Dbg.Sys("LoginAttempt::"+loginParam[0], thisModule)
 	userFound, uid = sys.db.CheckUserLogin(loginParam[0], loginParam[1])
 	if userFound == true {
 		sys.currentUser, exists = sys.conUsers[loginParam[0]]
 		if exists && sys.conUsers[loginParam[0]].IsOnline() {
 			buf = genDataPacket("", "UserAlreadyLoggedIn", status, loginParam[0])
-			logger.SystemMessage("LoginFailed::UserLoggedIn::"+loginParam[0], thisModule)
+			debug.Dbg.Sys("LoginFailed::UserLoggedIn::"+loginParam[0], thisModule)
 		} else {
 			status = 200
 			if !exists {
@@ -141,11 +143,11 @@ func (sys *System) loginRequest(w http.ResponseWriter, r *http.Request) {
 			}
 			sys.currentUser.SetOnline(true)
 			buf = genDataPacket(sys.currentUser.GetToken(), "LoginSuccessful", status, sys.currentUser.GetName())
-			logger.SystemMessage("LoginSuccessful::"+sys.currentUser.GetName(), thisModule)
+			debug.Dbg.Sys("LoginSuccessful::"+sys.currentUser.GetName(), thisModule)
 		}
 	} else {
 		buf = genDataPacket("", "UserNotFound", status, loginParam[0])
-		logger.SystemMessage("LoginFailed::UserNotFound::"+loginParam[0], thisModule)
+		debug.Dbg.Sys("LoginFailed::UserNotFound::"+loginParam[0], thisModule)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

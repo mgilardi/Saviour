@@ -1,5 +1,5 @@
 {
-	"Name": "Logger",
+	"Name": "Debug",
 	"Disabled": "False",
 	"LogType": 3,
 	"LogLevel": 3,

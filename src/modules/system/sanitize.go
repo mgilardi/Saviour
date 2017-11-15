@@ -2,6 +2,8 @@ package system
 
 import (
 	//"modules/logger"
+	"errors"
+	"modules/database"
 	"regexp"
 
 	"gopkg.in/go-playground/validator.v9"
@@ -12,6 +14,7 @@ func sanitizeLogin(packet DataPacket) [3]string {
 	validate := validator.New()
 	err := validate.Struct(packet)
 	if err != nil {
+		database.LogDB.Warn(errors.New("PacketValidation"), thisModule)
 		for _, err := range err.(validator.ValidationErrors) {
 			switch err.Field() {
 			case "User":
@@ -42,6 +45,7 @@ func sanitizePacket(packet DataPacket) DataPacket {
 	validate := validator.New()
 	err := validate.Struct(packet)
 	if err != nil {
+		database.LogDB.Warn(errors.New("PacketValidation"), thisModule)
 		for _, err := range err.(validator.ValidationErrors) {
 			switch err.Field() {
 			case "Username":

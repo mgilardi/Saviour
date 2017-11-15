@@ -3,9 +3,13 @@ package user
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"fmt"
 	"modules/database"
+	"modules/debug"
 	"strconv"
+)
+
+const (
+	thisModule = "User"
 )
 
 // User handles users
@@ -51,7 +55,8 @@ func (user *User) GetInfoMap() map[string]interface{} {
 		var err error
 		userInfo, err = user.db.GetUserMap(user.uid)
 		if err != nil {
-
+			database.LogDB.Err(err, thisModule)
+			debug.Dbg.Err(err, thisModule, 1)
 		}
 		user.cache.SetCacheMap("user:"+strconv.Itoa(user.uid)+":"+"info", userInfo, true)
 	}
@@ -90,7 +95,8 @@ func genToken(length int) string {
 	byte := make([]byte, length)
 	_, err := rand.Read(byte)
 	if err != nil {
-		fmt.Println("ErrorGenToken::" + err.Error())
+		database.LogDB.Err(err, thisModule)
+		debug.Dbg.Err(err, thisModule, 1)
 	}
 	return base64.URLEncoding.EncodeToString(byte)
 }

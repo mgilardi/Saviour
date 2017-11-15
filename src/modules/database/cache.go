@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"config"
 	"encoding/gob"
-	"modules/logger"
+	"modules/debug"
 	"strings"
 	"time"
 )
+
+// DBCache global cache access
+var DBCache *Cache
 
 // Data holds the data input/output of the binary encoder/decoder
 type Data struct {
@@ -23,17 +26,19 @@ type Cache struct {
 }
 
 // InitCache constructs the cache object
-func InitCache(db *Database) *Cache {
-	var cache Cache
-	cache.db = db
-	cache.options = config.GetOptions(thisModule)
-	cache.expireTime = time.Duration(int(cache.options["ExpireTime"].(float64)))
-	cache.cacheOptions()
-	return &cache
+func InitCache(db *Database) {
+	var newCache Cache
+	debug.Dbg.Sys("Starting", thisModule)
+	newCache.db = db
+	newCache.options = config.GetOptions(thisModule)
+	newCache.expireTime = time.Duration(int(newCache.options["ExpireTime"].(float64)))
+	newCache.cacheOptions()
+	DBCache = &newCache
 }
 
 // cacheOptions loads the modules configuration files into cache
 func (cache *Cache) cacheOptions() {
+	debug.Dbg.Sys("CacheOptions", thisModule)
 	allOptions := config.GetAllOptions()
 	for _, opt := range allOptions {
 		cache.SetCacheMap(strings.ToLower(opt["Name"].(string)+":config"), opt, false)
@@ -42,11 +47,13 @@ func (cache *Cache) cacheOptions() {
 
 // CheckCache checks for expired cache entrys
 func (cache *Cache) CheckCache() {
+	debug.Dbg.Sys("CheckCacheForExpired", thisModule)
 	cache.db.CheckCache()
 }
 
 // ClearAllCache removes all the records from the cache and reloads module options
 func (cache *Cache) ClearAllCache() {
+	debug.Dbg.Sys("ClearAllCache", thisModule)
 	cache.db.ClearCache()
 	cache.cacheOptions()
 }
@@ -58,13 +65,15 @@ func (cache *Cache) ClearAllCache() {
 // base on the configuration value of ExpireTime in minutes.
 func (cache *Cache) SetCacheMap(cid string, data map[string]interface{}, expires bool) {
 	var denc Data
+	debug.Dbg.Sys("SetCacheMap::"+cid, thisModule)
 	gob.Register(Data{})
 	cache.buf.Reset()
 	denc.DataMap = data
 	enc := gob.NewEncoder(&cache.buf)
 	err := enc.Encode(&denc)
 	if err != nil {
-		logger.Error(err.Error(), thisModule, 3)
+		LogDB.Err(err, thisModule)
+		debug.Dbg.Err(err, thisModule, 3)
 	}
 	if !expires {
 		cache.db.WriteCache(cid, cache.buf.Bytes())
@@ -77,6 +86,7 @@ func (cache *Cache) SetCacheMap(cid string, data map[string]interface{}, expires
 // GetCacheMap returns requested cache map
 func (cache *Cache) GetCacheMap(cid string) (bool, map[string]interface{}) {
 	var data Data
+	debug.Dbg.Sys("GetCacheMap::"+cid, thisModule)
 	cache.CheckCache()
 	gob.Register(Data{})
 	exists := true
@@ -84,12 +94,14 @@ func (cache *Cache) GetCacheMap(cid string) (bool, map[string]interface{}) {
 	dec := gob.NewDecoder(&cache.buf)
 	_, err := cache.buf.Write(cache.db.ReadCache(cid))
 	if err != nil {
-		logger.Error(err.Error(), thisModule, 3)
+		LogDB.Err(err, thisModule)
+		debug.Dbg.Err(err, thisModule, 3)
 		exists = false
 	}
 	err = dec.Decode(&data)
 	if err != nil {
-		logger.Error(err.Error(), thisModule, 3)
+		LogDB.Err(err, thisModule)
+		debug.Dbg.Err(err, thisModule, 3)
 		exists = false
 	}
 	return exists, data.DataMap
