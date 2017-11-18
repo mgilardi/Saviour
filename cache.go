@@ -22,7 +22,6 @@ type Data struct {
 // Cache holds the options, buffer, and db access
 type Cache struct {
 	expireTime time.Duration
-	options    map[string]interface{}
 	buf        bytes.Buffer
 	db         *Database
 }
@@ -32,8 +31,8 @@ func InitCache(db *Database) {
 	var newCache Cache
 	DebugHandler.Sys("Starting", "Database")
 	newCache.db = db
-	newCache.options = GetOptions(thisModuleCache)
-	newCache.expireTime = time.Duration(int(newCache.options["ExpireTime"].(float64)))
+	options := GetOptions(thisModuleCache)
+	newCache.expireTime = time.Duration(int(options["ExpireTime"].(float64)))
 	newCache.cacheOptions()
 	CacheHandler = &newCache
 	CronHandler.Add("CacheCheck", true, func() {
