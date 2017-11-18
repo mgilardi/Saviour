@@ -1,5 +1,5 @@
 {
 	"Name": "Cron",
   "Disabled": "False",
-  "Interval": 5
+  "Interval": 10
 }

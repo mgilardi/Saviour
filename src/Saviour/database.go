@@ -237,7 +237,7 @@ func (db *Database) WriteCache(cid string, data []byte) {
 func (db *Database) WriteCacheExp(cid string, data []byte, expires int64) {
 	//debug.DebugHandler.Sys("WriteCacheExp", thisModule)
 	_, err := db.sql.Exec(`INSERT INTO cache (cid, data, expires) VALUES (?, ?, ?)`+
-		`ON DUPLICATE KEY UPDATE data = ?`, cid, data, expires, data)
+		`ON DUPLICATE KEY UPDATE data = ?, expires = ?`, cid, data, expires, data, expires)
 	if err != nil {
 		LogHandler.Err(err, thisModuleDB)
 		DebugHandler.Err(err, thisModuleDB, 3)
@@ -245,18 +245,27 @@ func (db *Database) WriteCacheExp(cid string, data []byte, expires int64) {
 }
 
 // ReadCache returns a cache entry
-func (db *Database) ReadCache(cid string) []byte {
+func (db *Database) ReadCache(cid string) (bool, []byte) {
 	var data []byte
+	var expires sql.NullInt64
+	var exists bool
 	DebugHandler.Sys("ReadCache", thisModuleDB)
-	err := db.sql.QueryRow(`SELECT data FROM cache WHERE cid = ?`, cid).Scan(&data)
+	err := db.sql.QueryRow(`SELECT data, expires FROM cache WHERE cid = ?`, cid).Scan(&data, &expires)
+	exp, _ := expires.Value()
 	switch {
 	case err == sql.ErrNoRows:
 		DebugHandler.Sys("CacheNotFound", thisModuleDB)
+		exists = false
 	case err != nil:
 		LogHandler.Err(err, thisModuleDB)
 		DebugHandler.Err(err, thisModuleDB, 3)
+		exists = false
+	case expires.Valid && exp.(int64) > time.Now().Unix():
+		exists = false
+	default:
+		exists = true
 	}
-	return data
+	return exists, data
 }
 
 // ClearCache clears all records in cache table

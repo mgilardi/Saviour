@@ -17,15 +17,15 @@ const (
 // DataPacket is the struct that json files are loaded into when marshaled
 type DataPacket struct {
 	Login struct {
-		User  string `json:"user,omitempty" validate:"min=0,max=45,alphanum"`
-		Pass  string `json:"pass,omitempty" validate:"min=0,max=45,alphanum"`
-		Email string `json:"email,omitempty" validate:"min=0,max=45,email"`
+		User  string `json:"user,omitempty" validate:"max=45,alphanum|len=0"`
+		Pass  string `json:"pass,omitempty" validate:"max=45,alphanum|len=0"`
+		Email string `json:"email,omitempty" validate:"max=45,email|len=0"`
 	} `json:"login"`
 	Saviour struct {
-		Username string `json:"username,omitempty" validate:"max=45,alphanum"`
-		Status   int    `json:"status,omitempty" validate:"max=3"`
-		Token    string `json:"token,omitempty" validate:"max=45,base64"`
-		Message  string `json:"message,omitempty" validate:"max=45,base64"`
+		Username string `json:"username,omitempty" validate:"max=45,alphanum|len=0"`
+		Status   int    `json:"status,omitempty" validate:"len=3|len=0"`
+		Token    string `json:"token,omitempty" validate:"max=45,base64|len=0"`
+		Message  string `json:"message,omitempty" validate:"max=45,base64|len=0"`
 	} `json:"saviour"`
 }
 
@@ -33,6 +33,8 @@ type DataPacket struct {
 func genDataPacket(token string, message string, status int, username string) []byte {
 	var packet DataPacket
 	var buf []byte
+	// Testing
+	packet = sanitizePacket(packet)
 	packet.Saviour.Token = token
 	packet.Saviour.Message = message
 	packet.Saviour.Status = status
@@ -103,11 +105,10 @@ func (sys *System) indexPage(w http.ResponseWriter, r *http.Request) {
 // createRequest handles user creation/registration
 func (sys *System) createRequest(w http.ResponseWriter, r *http.Request) {
 	var packet DataPacket
-	var loginParam [3]string
 	var buf []byte
 	buf, _ = ioutil.ReadAll(r.Body)
 	packet = loadDataPacket(buf)
-	loginParam = sanitizeLogin(packet)
+	loginParam := [3]string{packet.Login.User, packet.Login.Pass, packet.Login.Email}
 	DebugHandler.Sys("CreatingUser::"+loginParam[0], thisModuleSystem)
 }
 
@@ -117,14 +118,13 @@ func (sys *System) createRequest(w http.ResponseWriter, r *http.Request) {
 // a status of 200, the username and a message of LoginSuccessful.
 func (sys *System) loginRequest(w http.ResponseWriter, r *http.Request) {
 	var packet DataPacket
-	var loginParam [3]string
 	var buf []byte
 	var uid int
 	var userFound, exists bool
 	status := 400
 	buf, _ = ioutil.ReadAll(r.Body)
 	packet = loadDataPacket(buf)
-	loginParam = sanitizeLogin(packet)
+	loginParam := [3]string{packet.Login.User, packet.Login.Pass, packet.Login.Email}
 	DebugHandler.Sys("LoginAttempt::"+loginParam[0], thisModuleSystem)
 	userFound, uid = sys.db.CheckUserLogin(loginParam[0], loginParam[1])
 	if userFound == true {

@@ -12,7 +12,7 @@ const (
 	thisModuleDebug = "debug"
 )
 
-// Dbg global variable for debug access
+// DebugHandler global variable for debug access
 var DebugHandler *Debug
 
 // Debug contains the enable flag

@@ -11,7 +11,7 @@ const (
 	thisModuleCache = "Cache"
 )
 
-// CacheDB global cache access
+// CacheHandler global cache access
 var CacheHandler *Cache
 
 // Data holds the data input/output of the binary encoder/decoder
@@ -36,6 +36,9 @@ func InitCache(db *Database) {
 	newCache.expireTime = time.Duration(int(newCache.options["ExpireTime"].(float64)))
 	newCache.cacheOptions()
 	CacheHandler = &newCache
+	CronHandler.Add("CacheCheck", true, func() {
+		CacheHandler.CheckCache()
+	})
 }
 
 // cacheOptions loads the modules configuration files into cache
@@ -89,22 +92,24 @@ func (cache *Cache) SetCacheMap(cid string, data map[string]interface{}, expires
 func (cache *Cache) GetCacheMap(cid string) (bool, map[string]interface{}) {
 	var data Data
 	DebugHandler.Sys("GetCacheMap::"+cid, thisModuleCache)
-	cache.CheckCache()
 	gob.Register(Data{})
-	exists := true
+	exists := false
 	cache.buf.Reset()
 	dec := gob.NewDecoder(&cache.buf)
-	_, err := cache.buf.Write(cache.db.ReadCache(cid))
-	if err != nil {
-		LogHandler.Err(err, thisModuleCache)
-		DebugHandler.Err(err, thisModuleCache, 3)
-		exists = false
-	}
-	err = dec.Decode(&data)
-	if err != nil {
-		LogHandler.Err(err, thisModuleCache)
-		DebugHandler.Err(err, thisModuleCache, 3)
-		exists = false
+	cacheExists, cacheData := cache.db.ReadCache(cid)
+	if cacheExists {
+		_, err := cache.buf.Write(cacheData)
+		if err != nil {
+			LogHandler.Err(err, thisModuleCache)
+			DebugHandler.Err(err, thisModuleCache, 3)
+		}
+		err = dec.Decode(&data)
+		if err != nil {
+			LogHandler.Err(err, thisModuleCache)
+			DebugHandler.Err(err, thisModuleCache, 3)
+		} else {
+			exists = true
+		}
 	}
 	return exists, data.DataMap
 }

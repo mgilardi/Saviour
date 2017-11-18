@@ -1,6 +1,6 @@
 package main
 
-// Package logger handles all system output, both errors and system messages. Outputs to File, Database, or Console.
+// logger handles all system output, both errors and system messages. Outputs to File, Database, or Console.
 // Log Level is determined by the configuration file
 // Controls exit of server if an error occurs after the errors have been written
 
@@ -9,8 +9,10 @@ const (
 	sysLevelRequest = "SysLevel"
 )
 
+// LogHandler logger global variable
 var LogHandler *Logger
 
+// Logger struct contains database
 type Logger struct {
 	db *Database
 }
