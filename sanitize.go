@@ -16,7 +16,6 @@ func sanitizePacket(packet DataPacket) DataPacket {
 	validate := validator.New()
 	err := validate.Struct(packet)
 	if err != nil {
-
 		for _, err := range err.(validator.ValidationErrors) {
 			switch err.Field() {
 			case "User":

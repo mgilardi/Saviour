@@ -33,15 +33,16 @@ func InitCache(db *Database) {
 	newCache.db = db
 	options := GetOptions(thisModuleCache)
 	newCache.expireTime = time.Duration(int(options["ExpireTime"].(float64)))
-	newCache.cacheOptions()
+	newCache.CacheOptions()
 	CacheHandler = &newCache
 	CronHandler.Add("CacheCheck", true, func() {
 		CacheHandler.CheckCache()
+		CacheHandler.CacheOptions()
 	})
 }
 
-// cacheOptions loads the modules configuration files into cache
-func (cache *Cache) cacheOptions() {
+// CacheOptions loads the modules configuration files into cache
+func (cache *Cache) CacheOptions() {
 	DebugHandler.Sys("CacheOptions", thisModuleCache)
 	allOptions := GetAllOptions()
 	for _, opt := range allOptions {
@@ -59,7 +60,7 @@ func (cache *Cache) CheckCache() {
 func (cache *Cache) ClearAllCache() {
 	DebugHandler.Sys("ClearAllCache", thisModuleCache)
 	cache.db.ClearCache()
-	cache.cacheOptions()
+	cache.CacheOptions()
 }
 
 // SetCacheMap converts map into a binary string and loads the string into the database
