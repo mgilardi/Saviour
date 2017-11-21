@@ -122,7 +122,7 @@ func (cron *Cron) startCron(chanJobs chan map[string]*CronObj) {
 
 // Interval changes cron interval
 func (cron *Cron) Interval(interval int) {
-	cron.chanInterval <- time.Duration(interval) * time.Hour
+	cron.chanInterval <- time.Duration(interval) * time.Second
 }
 
 // ForceStart forces cron to start

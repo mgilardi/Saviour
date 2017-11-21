@@ -64,7 +64,6 @@ func (db *Database) CheckDB() {
 	if err != nil {
 		LogHandler.Err(err, thisModuleDB)
 		DebugHandler.Err(err, thisModuleDB, 1)
-
 	}
 	DebugHandler.Sys("AvaliableTables", thisModuleDB)
 	for rows.Next() {
@@ -112,9 +111,9 @@ func (db *Database) CheckUserLogin(name string, pass string) (bool, int) {
 	return verified, uid
 }
 
-// CheckUserExits checks the database for a username and returns true or false
+// CheckUserExists checks the database for a username and returns true or false
 // if it exists
-func (db *Database) CheckUserExits(name string) bool {
+func (db *Database) CheckUserExists(name string) bool {
 	DebugHandler.Sys("CheckUserExists::"+name, thisModuleDB)
 	exists := false
 	_, err := db.GetUserID(name)
@@ -148,11 +147,27 @@ func (db *Database) RemoveUser(name string) {
 		LogHandler.Err(err, thisModuleDB)
 		DebugHandler.Err(err, thisModuleDB, 3)
 	} else {
-		_, err := db.sql.Exec(`DELETE FROM * WHERE uid = ?`, uid)
+		tx, err := db.sql.Begin()
+		tx.Exec(`DELETE FROM login_token WHERE uid = ?`, uid)
+		tx.Exec(`DELETE FROM user_roles WHERE uid = ?`, uid)
+		tx.Exec(`DELETE FROM sessions WHERE uid = ?`, uid)
+		tx.Exec(`DELETE FROM users WHERE uid = ?`, uid)
 		if err != nil {
-			LogHandler.Err(err, thisModuleDB)
 			DebugHandler.Err(err, thisModuleDB, 3)
+			tx.Rollback()
+		} else {
+			tx.Commit()
+			db.ResetIncrement("login_token", "user_roles", "sessions", "users")
 		}
+	}
+}
+
+// ResetIncrement keeps the increment tidy in the database
+func (db *Database) ResetIncrement(tables ...string) {
+	var maxIncrement int
+	for _, table := range tables {
+		db.sql.QueryRow(`SELECT MAX(UID) + 1 FROM ?`, table).Scan(&maxIncrement)
+		db.sql.Exec(`ALTER TABLE ? AUTO_INCREMENT = ?`, table, maxIncrement)
 	}
 }
 
@@ -215,7 +230,8 @@ func (db *Database) CheckToken(uid int) bool {
 // StoreToken writes user token to the database
 func (db *Database) StoreToken(uid int, token string) {
 	DebugHandler.Sys("StoreToken", thisModuleDB)
-	_, err := db.sql.Exec(`INSERT INTO login_token(uid, token) VALUES (?, ?)`, uid, token)
+	_, err := db.sql.Exec(`INSERT INTO login_token(uid, token) VALUES (?, ?)`+
+		`ON DUPLICATE KEY UPDATE token = ?`, uid, token, token)
 	if err != nil {
 		LogHandler.Err(err, thisModuleDB)
 		DebugHandler.Err(err, thisModuleDB, 3)
@@ -251,7 +267,6 @@ func (db *Database) ReadCache(cid string) (bool, []byte) {
 	var exists bool
 	DebugHandler.Sys("ReadCache", thisModuleDB)
 	err := db.sql.QueryRow(`SELECT data, expires FROM cache WHERE cid = ?`, cid).Scan(&data, &expires)
-	exp, _ := expires.Value()
 	switch {
 	case err == sql.ErrNoRows:
 		DebugHandler.Sys("CacheNotFound", thisModuleDB)
@@ -260,8 +275,12 @@ func (db *Database) ReadCache(cid string) (bool, []byte) {
 		LogHandler.Err(err, thisModuleDB)
 		DebugHandler.Err(err, thisModuleDB, 3)
 		exists = false
-	case expires.Valid && exp.(int64) > time.Now().Unix():
-		exists = false
+	case expires.Valid:
+		if expires.Int64 < time.Now().Unix() {
+			exists = false
+		} else {
+			exists = true
+		}
 	default:
 		exists = true
 	}
@@ -270,7 +289,7 @@ func (db *Database) ReadCache(cid string) (bool, []byte) {
 
 // ClearCache clears all records in cache table
 func (db *Database) ClearCache() {
-	_, err := db.sql.Exec(`DELETE FROM cache`)
+	_, err := db.sql.Exec(`TRUNCATE TABLE cache`)
 	if err != nil {
 		LogHandler.Err(err, thisModuleDB)
 		DebugHandler.Err(err, thisModuleDB, 3)

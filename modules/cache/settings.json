@@ -1,7 +1,5 @@
 {
-	"Name": "Database",
+	"Name": "Cache",
   "Disabled": "False",
-	"User": "saviour",
-	"Pass": "Wlzv1iwFSV0W6cL4",
   "ExpireTime": 5
 }

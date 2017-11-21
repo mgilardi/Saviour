@@ -60,7 +60,7 @@ func (cache *Cache) CheckCache() {
 func (cache *Cache) ClearAllCache() {
 	DebugHandler.Sys("ClearAllCache", thisModuleCache)
 	cache.db.ClearCache()
-	cache.CacheOptions()
+	//cache.CacheOptions()
 }
 
 // SetCacheMap converts map into a binary string and loads the string into the database

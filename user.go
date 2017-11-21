@@ -34,7 +34,7 @@ func InitUser(id int, db *Database, cache *Cache) *User {
 // it generates one.
 func (user *User) CheckToken() {
 	if !user.db.CheckToken(user.uid) {
-		user.db.StoreToken(user.uid, genToken(32))
+		user.db.StoreToken(user.uid, GenToken(32))
 	}
 }
 
@@ -73,7 +73,7 @@ func (user *User) GetToken() string {
 
 // SetToken generates a new token and writes it to DB
 func (user *User) SetToken() {
-	token := genToken(32)
+	token := GenToken(32)
 	user.db.StoreToken(user.uid, token)
 	user.InfoUpdate()
 }
@@ -88,8 +88,8 @@ func (user *User) SetOnline(isOnline bool) {
 	user.online = isOnline
 }
 
-// genToken generates user token of specified length
-func genToken(length int) string {
+// GenToken generates user token of specified length
+func GenToken(length int) string {
 	byte := make([]byte, length)
 	_, err := rand.Read(byte)
 	if err != nil {
