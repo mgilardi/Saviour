@@ -28,11 +28,12 @@ func newCronObj(name string, repeat bool, job func()) *CronObj {
 
 // Cron is the main structure contains the interval and the jobs map
 type Cron struct {
-	interval     time.Duration
-	chanInterval chan time.Duration
-	chanLock     chan bool
-	chanRun      chan bool
-	jobs         map[string]*CronObj
+	interval      time.Duration
+	chanInterval  chan time.Duration
+	chanLock      chan bool
+	chanCheckLock chan bool
+	chanRun       chan bool
+	jobs          map[string]*CronObj
 }
 
 // InitCron this initializes the cron module
@@ -42,9 +43,10 @@ func InitCron() {
 	cron.jobs = make(map[string]*CronObj)
 	cron.chanInterval = make(chan time.Duration)
 	cron.chanLock = make(chan bool)
+	cron.chanCheckLock = make(chan bool)
 	cron.chanRun = make(chan bool)
 	options := GetOptions("Cron")
-	cron.interval = time.Duration(options["Interval"].(float64)) * time.Hour
+	cron.interval = time.Duration(options["Interval"].(float64)) * time.Second
 	go cron.startCron(chanJobs)
 	go cron.startInterval(chanJobs)
 	cron.chanInterval <- cron.interval
@@ -67,9 +69,11 @@ func (cron *Cron) startInterval(chanJobs chan map[string]*CronObj) {
 	}()
 	cron.chanInterval <- interval
 	for {
+		var locked bool
+		locked = false
 		select {
 		case run := <-cron.chanRun:
-			if run {
+			if run && !locked {
 				DebugHandler.Sys("ForcedRun", "Cron")
 				chanJobs <- cron.jobs
 			}
@@ -80,9 +84,15 @@ func (cron *Cron) startInterval(chanJobs chan map[string]*CronObj) {
 			cron.chanInterval <- interval
 		case lock := <-cron.chanLock:
 			if lock {
-				if !<-cron.chanLock {
-					DebugHandler.Sys("LockComplete", "Cron")
-				}
+				DebugHandler.Sys("CronLocked", "Cron")
+				locked = true
+			} else {
+				DebugHandler.Sys("CronUnlocked", "Cron")
+				locked = false
+			}
+		case this := <-cron.chanCheckLock:
+			if this {
+				cron.chanCheckLock <- locked
 			}
 		default:
 			// Ignore
@@ -105,9 +115,8 @@ func (cron *Cron) startCron(chanJobs chan map[string]*CronObj) {
 			}
 			LogHandler.Stat("Finished::"+job.name, "Cron")
 		}
-		cron.chanLock <- false
 		chanJobs <- jobs
-
+		cron.chanLock <- false
 	}
 }
 
@@ -121,10 +130,25 @@ func (cron *Cron) ForceStart() {
 	cron.chanRun <- true
 }
 
-// Add adds a new job to the jobs map
+// Add adds a new job to the jobs map if cronlock is enabled it will create a
+// gothread the holds the new job until the lock is disengaged
 func (cron *Cron) Add(cronName string, repeat bool, job func()) {
 	newJob := newCronObj(cronName, repeat, job)
-	cron.chanLock <- true
-	cron.jobs[cronName] = newJob
-	cron.chanLock <- false
+	cron.chanCheckLock <- true
+	locked := <-cron.chanCheckLock
+	if !locked {
+		cron.jobs[cronName] = newJob
+	} else {
+		go func() {
+			for {
+				time.Sleep(time.Duration(10) * time.Second)
+				cron.chanCheckLock <- true
+				locked = <-cron.chanCheckLock
+				if !locked {
+					cron.jobs[cronName] = newJob
+					break
+				}
+			}
+		}()
+	}
 }
