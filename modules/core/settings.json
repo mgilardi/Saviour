@@ -1,0 +1,10 @@
+{
+	"Name": "Core",
+  "Disabled": "False",
+  "Interval": 10,
+  "Hostname": "localhost",
+  "Port":  "8080",
+  "User": "saviour",
+  "Pass": "Wlzv1iwFSV0W6cL4",
+  "ExpireTime": 5
+}

@@ -1,7 +1,8 @@
-package main
+package core
 
 import (
 	//"config"
+
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -74,7 +75,7 @@ func InitSystem(datab *Database) {
 	sys.db = datab
 	sys.cache = CacheHandler
 	DebugHandler.Sys("Starting", thisModuleSystem)
-	exists, options := sys.cache.GetCacheMap("system:config")
+	exists, options := sys.cache.GetCacheMap("core:config")
 	if exists {
 		sys.hostname = options["Hostname"].(string)
 		sys.port = options["Port"].(string)
@@ -119,24 +120,23 @@ func (sys *System) createRequest(w http.ResponseWriter, r *http.Request) {
 func (sys *System) loginRequest(w http.ResponseWriter, r *http.Request) {
 	var packet DataPacket
 	var buf []byte
-	var uid int
 	var userFound, exists bool
+	var currentUser *User
 	status := 400
 	buf, _ = ioutil.ReadAll(r.Body)
 	packet = loadDataPacket(buf)
 	loginParam := [3]string{packet.Login.User, packet.Login.Pass, packet.Login.Email}
 	DebugHandler.Sys("LoginAttempt::"+loginParam[0], thisModuleSystem)
-	userFound, uid = sys.db.CheckUserLogin(loginParam[0], loginParam[1])
+	userFound, currentUser = InitUser(sys.db, loginParam[0], loginParam[1])
 	if userFound == true {
-		sys.currentUser, exists = sys.conUsers[loginParam[0]]
+		currentUser, exists = sys.conUsers[loginParam[0]]
 		if exists && sys.conUsers[loginParam[0]].IsOnline() {
 			buf = genDataPacket("", "UserAlreadyLoggedIn", status, loginParam[0])
 			DebugHandler.Sys("LoginFailed::UserLoggedIn::"+loginParam[0], thisModuleSystem)
 		} else {
 			status = 200
 			if !exists {
-				sys.currentUser = InitUser(uid, sys.db, sys.cache)
-				sys.conUsers[sys.currentUser.GetName()] = sys.currentUser
+				sys.conUsers[sys.currentUser.GetName()] = currentUser
 			}
 			sys.currentUser.SetOnline(true)
 			buf = genDataPacket(sys.currentUser.GetToken(), "LoginSuccessful", status, sys.currentUser.GetName())
@@ -149,4 +149,37 @@ func (sys *System) loginRequest(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	w.Write(buf)
+}
+
+// CreateUser creates a new user entry in the database
+func (sys *System) CreateUser(name string, pass string, email string) {
+	DebugHandler.Sys("CreateUser::"+name, thisModuleDB)
+	_, err := sys.db.sql.Exec(`INSERT INTO users (name, pass, mail) VALUES (?, ?, ?)`, name, pass, email)
+	if err != nil {
+		LogHandler.Err(err, thisModuleDB)
+		DebugHandler.Err(err, thisModuleDB, 3)
+	}
+}
+
+// RemoveUser removes a user entry from the database
+func (sys *System) RemoveUser(name string) {
+	DebugHandler.Sys("RemoveUser::"+name, thisModuleDB)
+	uid, err := GetUserID(sys.db, name)
+	if err != nil {
+		LogHandler.Err(err, thisModuleDB)
+		DebugHandler.Err(err, thisModuleDB, 3)
+	} else {
+		tx, err := sys.db.sql.Begin()
+		tx.Exec(`DELETE FROM login_token WHERE uid = ?`, uid)
+		tx.Exec(`DELETE FROM user_roles WHERE uid = ?`, uid)
+		tx.Exec(`DELETE FROM sessions WHERE uid = ?`, uid)
+		tx.Exec(`DELETE FROM users WHERE uid = ?`, uid)
+		if err != nil {
+			DebugHandler.Err(err, thisModuleDB, 3)
+			tx.Rollback()
+		} else {
+			tx.Commit()
+			sys.db.ResetIncrement("login_token", "user_roles", "sessions", "users")
+		}
+	}
 }

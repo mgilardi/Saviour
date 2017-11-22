@@ -1,4 +1,4 @@
-package main
+package core
 
 // Cron takes in functions and adds them to a map that is run at a specified
 // interval. It employs two go routines a controller/worker
@@ -45,7 +45,7 @@ func InitCron() {
 	cron.chanLock = make(chan bool)
 	cron.chanCheckLock = make(chan bool)
 	cron.chanRun = make(chan bool)
-	options := GetOptions("Cron")
+	options := GetOptions("Core")
 	cron.interval = time.Duration(options["Interval"].(float64)) * time.Second
 	go cron.startCron(chanJobs)
 	go cron.startInterval(chanJobs)

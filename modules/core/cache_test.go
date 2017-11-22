@@ -1,4 +1,4 @@
-package main
+package core
 
 import (
 	"testing"
@@ -8,12 +8,11 @@ func TestCache_InitCache(t *testing.T) {
 	InitDebug(false)
 	InitCron()
 	InitDatabase()
-	CacheHandler.CacheOptions()
 	CacheHandler.CheckCache()
-	CacheHandler.SetCacheMap("Test", GetOptions("Cache"), true)
+	CacheHandler.SetCacheMap("Test", GetOptions("Core"), true)
 	exists, testCache := CacheHandler.GetCacheMap("Test")
 	if exists {
-		if testCache["Name"].(string) == "Cache" {
+		if testCache["Name"].(string) == "Core" {
 			// Test Sucsessful
 		} else {
 			t.Error("CacheFailed")

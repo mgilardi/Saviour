@@ -1,4 +1,4 @@
-package main
+package core
 
 import (
 	"fmt"
@@ -6,8 +6,8 @@ import (
 )
 
 func TestGetOptions(t *testing.T) {
-	options := GetOptions("Database")
-	if options["Name"].(string) == "Database" {
+	options := GetOptions("Core")
+	if options["Name"].(string) == "Core" {
 		fmt.Println("Testing::" + options["Name"].(string))
 	} else {
 		t.Errorf("CouldNotLoadModule")
@@ -24,7 +24,7 @@ func TestGetAllOptions(t *testing.T) {
 }
 
 func TestFindValuePass(t *testing.T) {
-	value := FindValue("Access", "Name")
+	value := FindValue("Core", "Name")
 	if value == nil {
 		t.Errorf("ValueIsNull")
 	}

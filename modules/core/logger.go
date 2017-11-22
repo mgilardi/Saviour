@@ -1,4 +1,4 @@
-package main
+package core
 
 // logger handles all system output, both errors and system messages. Outputs to File, Database, or Console.
 // Log Level is determined by the configuration file
@@ -26,20 +26,30 @@ func InitLogger(loadDB *Database) {
 
 // Stat writes status message
 func (logger *Logger) Stat(message string, module string) {
-	logger.db.WriteLog("Status", module, message)
+	logger.WriteLog("Status", module, message)
 }
 
 // Warn writes warning messages
 func (logger *Logger) Warn(err error, module string) {
-	logger.db.WriteLog("Warn", module, err.Error())
+	logger.WriteLog("Warn", module, err.Error())
 }
 
 // Err writes error messages
 func (logger *Logger) Err(err error, module string) {
-	logger.db.WriteLog("Error", module, err.Error())
+	logger.WriteLog("Error", module, err.Error())
 }
 
 // Fatal Writes Fatal Messages
 func (logger *Logger) Fatal(err error, module string) {
-	logger.db.WriteLog("Fatal", module, err.Error())
+	logger.WriteLog("Fatal", module, err.Error())
+}
+
+// WriteLog writes log entry into the database
+func (logger *Logger) WriteLog(logType string, module string, message string) {
+	DebugHandler.Sys("WritingLog::"+logType+"::"+module+"::"+message, thisModuleDB)
+	_, err := logger.db.sql.Exec(`INSERT INTO logger (type, module, message) VALUES (?, ?, ?)`, logType, module, message)
+	if err != nil {
+		DebugHandler.Err(err, thisModuleDB, 3)
+		LogHandler.Err(err, thisModuleDB)
+	}
 }

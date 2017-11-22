@@ -1,7 +1,7 @@
-// Package logger handles all system output, both errors and system messages. Outputs to File, Database, or Console.
+// Package core logger handles all system output, both errors and system messages. Outputs to File, Database, or Console.
 // Log Level is determined by the configuration file
 // Controls exit of server if an error occurs after the errors have been written
-package main
+package core
 
 import (
 	"fmt"

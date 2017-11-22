@@ -1,8 +1,8 @@
-// Loads configuration json files design goals are as follows.
+// Package core config loads configuration json files design goals are as follows.
 // Must be able to load new values inputted into the configuration without
 // modification. Can return a array including all the separate modules with
 // their corresponding configuration keys and values.
-package main
+package core
 
 import (
 	"encoding/json"

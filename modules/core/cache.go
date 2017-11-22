@@ -1,7 +1,8 @@
-package main
+package core
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/gob"
 	"strings"
 	"time"
@@ -31,7 +32,7 @@ func InitCache(db *Database) {
 	var newCache Cache
 	DebugHandler.Sys("Starting", "Database")
 	newCache.db = db
-	options := GetOptions(thisModuleCache)
+	options := GetOptions("Core")
 	newCache.expireTime = time.Duration(int(options["ExpireTime"].(float64)))
 	newCache.CacheOptions()
 	CacheHandler = &newCache
@@ -53,13 +54,13 @@ func (cache *Cache) CacheOptions() {
 // CheckCache checks for expired cache entrys
 func (cache *Cache) CheckCache() {
 	DebugHandler.Sys("CheckCacheForExpired", thisModuleCache)
-	cache.db.CheckCache()
+	cache.checkCache()
 }
 
 // ClearAllCache removes all the records from the cache and reloads module options
 func (cache *Cache) ClearAllCache() {
 	DebugHandler.Sys("ClearAllCache", thisModuleCache)
-	cache.db.ClearCache()
+	cache.clearCache()
 	//cache.CacheOptions()
 }
 
@@ -81,10 +82,10 @@ func (cache *Cache) SetCacheMap(cid string, data map[string]interface{}, expires
 		DebugHandler.Err(err, thisModuleCache, 3)
 	}
 	if !expires {
-		cache.db.WriteCache(cid, cache.buf.Bytes())
+		cache.writeCache(cid, cache.buf.Bytes())
 	} else {
 		unixExpTime := time.Unix(0, time.Now().Add(time.Duration(cache.expireTime*time.Minute)).UnixNano())
-		cache.db.WriteCacheExp(cid, cache.buf.Bytes(), unixExpTime.Unix())
+		cache.writeCacheExp(cid, cache.buf.Bytes(), unixExpTime.Unix())
 	}
 }
 
@@ -96,7 +97,7 @@ func (cache *Cache) GetCacheMap(cid string) (bool, map[string]interface{}) {
 	exists := false
 	cache.buf.Reset()
 	dec := gob.NewDecoder(&cache.buf)
-	cacheExists, cacheData := cache.db.ReadCache(cid)
+	cacheExists, cacheData := cache.readCache(cid)
 	if cacheExists {
 		_, err := cache.buf.Write(cacheData)
 		if err != nil {
@@ -112,4 +113,90 @@ func (cache *Cache) GetCacheMap(cid string) (bool, map[string]interface{}) {
 		}
 	}
 	return exists, data.DataMap
+}
+
+// WriteCache creates a new cache entry
+func (cache *Cache) writeCache(cid string, data []byte) {
+	//debug.DebugHandler.Sys("WriteCache", thisModule)
+	_, err := cache.db.sql.Exec(`INSERT INTO cache (cid, data) VALUES (?, ?)`+
+		`ON DUPLICATE KEY UPDATE data = ?`, cid, data, data)
+	if err != nil {
+		LogHandler.Err(err, thisModuleDB)
+		DebugHandler.Err(err, thisModuleDB, 3)
+	}
+}
+
+// WriteCacheExp creates a new cache entry that expires
+func (cache *Cache) writeCacheExp(cid string, data []byte, expires int64) {
+	//debug.DebugHandler.Sys("WriteCacheExp", thisModule)
+	_, err := cache.db.sql.Exec(`INSERT INTO cache (cid, data, expires) VALUES (?, ?, ?)`+
+		`ON DUPLICATE KEY UPDATE data = ?, expires = ?`, cid, data, expires, data, expires)
+	if err != nil {
+		LogHandler.Err(err, thisModuleDB)
+		DebugHandler.Err(err, thisModuleDB, 3)
+	}
+}
+
+// ReadCache returns a cache entry
+func (cache *Cache) readCache(cid string) (bool, []byte) {
+	var data []byte
+	var expires sql.NullInt64
+	var exists bool
+	DebugHandler.Sys("ReadCache", thisModuleDB)
+	err := cache.db.sql.QueryRow(`SELECT data, expires FROM cache WHERE cid = ?`, cid).Scan(&data, &expires)
+	switch {
+	case err == sql.ErrNoRows:
+		DebugHandler.Sys("CacheNotFound", thisModuleDB)
+		exists = false
+	case err != nil:
+		LogHandler.Err(err, thisModuleDB)
+		DebugHandler.Err(err, thisModuleDB, 3)
+		exists = false
+	case expires.Valid:
+		if expires.Int64 < time.Now().Unix() {
+			exists = false
+		} else {
+			exists = true
+		}
+	default:
+		exists = true
+	}
+	return exists, data
+}
+
+// ClearCache clears all records in cache table
+func (cache *Cache) clearCache() {
+	_, err := cache.db.sql.Exec(`TRUNCATE TABLE cache`)
+	if err != nil {
+		LogHandler.Err(err, thisModuleDB)
+		DebugHandler.Err(err, thisModuleDB, 3)
+	}
+}
+
+// CheckCache iterates through cache records checks if the record is expired
+// if the record is expired the record is deleted, if the record has NULL for
+// a value it is permanent and is skipped, if the record has not expired it is skipped
+func (cache *Cache) checkCache() {
+	var cid string
+	var expires sql.NullInt64
+	rows, err := cache.db.sql.Query(`SELECT cid, expires FROM cache`)
+	switch {
+	case err == sql.ErrNoRows:
+		DebugHandler.Sys("ExpiredRecordsNotFound", thisModuleDB)
+	case err != nil && err.Error() != "EOF":
+		DebugHandler.Err(err, thisModuleDB, 3)
+		LogHandler.Err(err, thisModuleDB)
+	default:
+		for rows.Next() {
+			rows.Scan(&cid, &expires)
+			if expires.Valid && expires.Int64 < time.Now().Unix() {
+				DebugHandler.Sys("RemovingExpired::"+cid, thisModuleDB)
+				_, err := cache.db.sql.Exec(`DELETE FROM cache WHERE cid = ?`, cid)
+				if err != nil {
+					DebugHandler.Err(err, thisModuleDB, 3)
+					LogHandler.Err(err, thisModuleDB)
+				}
+			}
+		}
+	}
 }
