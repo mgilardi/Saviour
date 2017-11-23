@@ -46,10 +46,10 @@ func (logger *Logger) Fatal(err error, module string) {
 
 // WriteLog writes log entry into the database
 func (logger *Logger) WriteLog(logType string, module string, message string) {
-	DebugHandler.Sys("WritingLog::"+logType+"::"+module+"::"+message, thisModuleDB)
+	DebugHandler.Sys("WritingLog::"+logType+"::"+module+"::"+message, "Logger")
 	_, err := logger.db.sql.Exec(`INSERT INTO logger (type, module, message) VALUES (?, ?, ?)`, logType, module, message)
 	if err != nil {
-		DebugHandler.Err(err, thisModuleDB, 3)
-		LogHandler.Err(err, thisModuleDB)
+		DebugHandler.Err(err, "Logger", 3)
+		LogHandler.Err(err, "Logger")
 	}
 }

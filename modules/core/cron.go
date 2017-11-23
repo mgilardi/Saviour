@@ -90,8 +90,8 @@ func (cron *Cron) startInterval(chanJobs chan map[string]*CronObj) {
 				DebugHandler.Sys("CronUnlocked", "Cron")
 				locked = false
 			}
-		case this := <-cron.chanCheckLock:
-			if this {
+		case isLocked := <-cron.chanCheckLock:
+			if isLocked {
 				cron.chanCheckLock <- locked
 			}
 		default:

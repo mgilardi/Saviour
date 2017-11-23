@@ -8,10 +8,6 @@ import (
 	"time"
 )
 
-const (
-	thisModuleCache = "Cache"
-)
-
 // CacheHandler global cache access
 var CacheHandler *Cache
 
@@ -38,13 +34,12 @@ func InitCache(db *Database) {
 	CacheHandler = &newCache
 	CronHandler.Add("CacheCheck", true, func() {
 		CacheHandler.CheckCache()
-		CacheHandler.CacheOptions()
 	})
 }
 
 // CacheOptions loads the modules configuration files into cache
 func (cache *Cache) CacheOptions() {
-	DebugHandler.Sys("CacheOptions", thisModuleCache)
+	DebugHandler.Sys("CacheOptions", "Cache")
 	allOptions := GetAllOptions()
 	for _, opt := range allOptions {
 		cache.SetCacheMap(strings.ToLower(opt["Name"].(string)+":config"), opt, false)
@@ -53,13 +48,13 @@ func (cache *Cache) CacheOptions() {
 
 // CheckCache checks for expired cache entrys
 func (cache *Cache) CheckCache() {
-	DebugHandler.Sys("CheckCacheForExpired", thisModuleCache)
+	DebugHandler.Sys("CheckCacheForExpired", "Cache")
 	cache.checkCache()
 }
 
 // ClearAllCache removes all the records from the cache and reloads module options
 func (cache *Cache) ClearAllCache() {
-	DebugHandler.Sys("ClearAllCache", thisModuleCache)
+	DebugHandler.Sys("ClearAllCache", "Cache")
 	cache.clearCache()
 	//cache.CacheOptions()
 }
@@ -71,15 +66,15 @@ func (cache *Cache) ClearAllCache() {
 // base on the configuration value of ExpireTime in minutes.
 func (cache *Cache) SetCacheMap(cid string, data map[string]interface{}, expires bool) {
 	var denc Data
-	DebugHandler.Sys("SetCacheMap::"+cid, thisModuleCache)
+	DebugHandler.Sys("SetCacheMap::"+cid, "Cache")
 	gob.Register(Data{})
 	cache.buf.Reset()
 	denc.DataMap = data
 	enc := gob.NewEncoder(&cache.buf)
 	err := enc.Encode(&denc)
 	if err != nil {
-		LogHandler.Err(err, thisModuleCache)
-		DebugHandler.Err(err, thisModuleCache, 3)
+		LogHandler.Err(err, "Cache")
+		DebugHandler.Err(err, "Cache", 3)
 	}
 	if !expires {
 		cache.writeCache(cid, cache.buf.Bytes())
@@ -92,7 +87,7 @@ func (cache *Cache) SetCacheMap(cid string, data map[string]interface{}, expires
 // GetCacheMap returns requested cache map
 func (cache *Cache) GetCacheMap(cid string) (bool, map[string]interface{}) {
 	var data Data
-	DebugHandler.Sys("GetCacheMap::"+cid, thisModuleCache)
+	DebugHandler.Sys("GetCacheMap::"+cid, "Cache")
 	gob.Register(Data{})
 	exists := false
 	cache.buf.Reset()
@@ -101,13 +96,13 @@ func (cache *Cache) GetCacheMap(cid string) (bool, map[string]interface{}) {
 	if cacheExists {
 		_, err := cache.buf.Write(cacheData)
 		if err != nil {
-			LogHandler.Err(err, thisModuleCache)
-			DebugHandler.Err(err, thisModuleCache, 3)
+			LogHandler.Err(err, "Cache")
+			DebugHandler.Err(err, "Cache", 3)
 		}
 		err = dec.Decode(&data)
 		if err != nil {
-			LogHandler.Err(err, thisModuleCache)
-			DebugHandler.Err(err, thisModuleCache, 3)
+			LogHandler.Err(err, "Cache")
+			DebugHandler.Err(err, "Cache", 3)
 		} else {
 			exists = true
 		}
@@ -121,8 +116,8 @@ func (cache *Cache) writeCache(cid string, data []byte) {
 	_, err := cache.db.sql.Exec(`INSERT INTO cache (cid, data) VALUES (?, ?)`+
 		`ON DUPLICATE KEY UPDATE data = ?`, cid, data, data)
 	if err != nil {
-		LogHandler.Err(err, thisModuleDB)
-		DebugHandler.Err(err, thisModuleDB, 3)
+		LogHandler.Err(err, "Cache")
+		DebugHandler.Err(err, "Cache", 3)
 	}
 }
 
@@ -132,8 +127,8 @@ func (cache *Cache) writeCacheExp(cid string, data []byte, expires int64) {
 	_, err := cache.db.sql.Exec(`INSERT INTO cache (cid, data, expires) VALUES (?, ?, ?)`+
 		`ON DUPLICATE KEY UPDATE data = ?, expires = ?`, cid, data, expires, data, expires)
 	if err != nil {
-		LogHandler.Err(err, thisModuleDB)
-		DebugHandler.Err(err, thisModuleDB, 3)
+		LogHandler.Err(err, "Cache")
+		DebugHandler.Err(err, "Cache", 3)
 	}
 }
 
@@ -142,15 +137,15 @@ func (cache *Cache) readCache(cid string) (bool, []byte) {
 	var data []byte
 	var expires sql.NullInt64
 	var exists bool
-	DebugHandler.Sys("ReadCache", thisModuleDB)
+	DebugHandler.Sys("ReadCache", "Cache")
 	err := cache.db.sql.QueryRow(`SELECT data, expires FROM cache WHERE cid = ?`, cid).Scan(&data, &expires)
 	switch {
 	case err == sql.ErrNoRows:
-		DebugHandler.Sys("CacheNotFound", thisModuleDB)
+		DebugHandler.Sys("CacheNotFound", "Cache")
 		exists = false
 	case err != nil:
-		LogHandler.Err(err, thisModuleDB)
-		DebugHandler.Err(err, thisModuleDB, 3)
+		LogHandler.Err(err, "Cache")
+		DebugHandler.Err(err, "Cache", 3)
 		exists = false
 	case expires.Valid:
 		if expires.Int64 < time.Now().Unix() {
@@ -168,8 +163,8 @@ func (cache *Cache) readCache(cid string) (bool, []byte) {
 func (cache *Cache) clearCache() {
 	_, err := cache.db.sql.Exec(`TRUNCATE TABLE cache`)
 	if err != nil {
-		LogHandler.Err(err, thisModuleDB)
-		DebugHandler.Err(err, thisModuleDB, 3)
+		LogHandler.Err(err, "Cache")
+		DebugHandler.Err(err, "Cache", 3)
 	}
 }
 
@@ -182,19 +177,19 @@ func (cache *Cache) checkCache() {
 	rows, err := cache.db.sql.Query(`SELECT cid, expires FROM cache`)
 	switch {
 	case err == sql.ErrNoRows:
-		DebugHandler.Sys("ExpiredRecordsNotFound", thisModuleDB)
+		DebugHandler.Sys("ExpiredRecordsNotFound", "Cache")
 	case err != nil && err.Error() != "EOF":
-		DebugHandler.Err(err, thisModuleDB, 3)
-		LogHandler.Err(err, thisModuleDB)
+		DebugHandler.Err(err, "Cache", 3)
+		LogHandler.Err(err, "Cache")
 	default:
 		for rows.Next() {
 			rows.Scan(&cid, &expires)
 			if expires.Valid && expires.Int64 < time.Now().Unix() {
-				DebugHandler.Sys("RemovingExpired::"+cid, thisModuleDB)
+				DebugHandler.Sys("RemovingExpired::"+cid, "Cache")
 				_, err := cache.db.sql.Exec(`DELETE FROM cache WHERE cid = ?`, cid)
 				if err != nil {
-					DebugHandler.Err(err, thisModuleDB, 3)
-					LogHandler.Err(err, thisModuleDB)
+					DebugHandler.Err(err, "Cache", 3)
+					LogHandler.Err(err, "Cache")
 				}
 			}
 		}

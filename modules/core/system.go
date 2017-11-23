@@ -11,10 +11,6 @@ import (
 	"github.com/gorilla/mux"
 )
 
-const (
-	thisModuleSystem = "System"
-)
-
 // DataPacket is the struct that json files are loaded into when marshaled
 type DataPacket struct {
 	Login struct {
@@ -42,8 +38,8 @@ func genDataPacket(token string, message string, status int, username string) []
 	packet.Saviour.Username = username
 	buf, err := json.Marshal(&packet)
 	if err != nil {
-		LogHandler.Err(err, thisModuleSystem)
-		DebugHandler.Err(err, thisModuleSystem, 3)
+		LogHandler.Err(err, "System")
+		DebugHandler.Err(err, "System", 3)
 	}
 	return buf
 }
@@ -53,8 +49,8 @@ func loadDataPacket(buf []byte) DataPacket {
 	var packet DataPacket
 	err := json.Unmarshal(buf, &packet)
 	if err != nil {
-		LogHandler.Err(err, thisModuleSystem)
-		DebugHandler.Err(err, thisModuleSystem, 3)
+		LogHandler.Err(err, "System")
+		DebugHandler.Err(err, "System", 3)
 	}
 	return sanitizePacket(packet)
 }
@@ -64,7 +60,6 @@ type System struct {
 	hostname, port string
 	db             *Database
 	cache          *Cache
-	currentUser    *User
 	conUsers       map[string]*User
 }
 
@@ -74,12 +69,12 @@ func InitSystem(datab *Database) {
 	sys.conUsers = make(map[string]*User)
 	sys.db = datab
 	sys.cache = CacheHandler
-	DebugHandler.Sys("Starting", thisModuleSystem)
+	DebugHandler.Sys("Starting", "System")
 	exists, options := sys.cache.GetCacheMap("core:config")
 	if exists {
 		sys.hostname = options["Hostname"].(string)
 		sys.port = options["Port"].(string)
-		DebugHandler.Sys("LoadedConfigFromCache::"+options["Name"].(string), thisModuleSystem)
+		DebugHandler.Sys("LoadedConfigFromCache::"+options["Name"].(string), "System")
 	}
 	sys.startServ()
 }
@@ -94,7 +89,7 @@ func (sys *System) handleRequest() {
 	servRouter := mux.NewRouter()
 	servRouter.HandleFunc("/", sys.indexPage)
 	servRouter.HandleFunc("/login", sys.loginRequest).Methods("POST")
-	DebugHandler.Err(http.ListenAndServe(sys.hostname+":"+sys.port, servRouter), thisModuleSystem, 1)
+	DebugHandler.Err(http.ListenAndServe(sys.hostname+":"+sys.port, servRouter), "System", 1)
 }
 
 // indexPage handles index page
@@ -110,7 +105,7 @@ func (sys *System) createRequest(w http.ResponseWriter, r *http.Request) {
 	buf, _ = ioutil.ReadAll(r.Body)
 	packet = loadDataPacket(buf)
 	loginParam := [3]string{packet.Login.User, packet.Login.Pass, packet.Login.Email}
-	DebugHandler.Sys("CreatingUser::"+loginParam[0], thisModuleSystem)
+	DebugHandler.Sys("CreatingUser::"+loginParam[0], "System")
 }
 
 // loginRequest handles initial login, if user is not found or password is incorrect it will return a UserNotFound
@@ -120,31 +115,29 @@ func (sys *System) createRequest(w http.ResponseWriter, r *http.Request) {
 func (sys *System) loginRequest(w http.ResponseWriter, r *http.Request) {
 	var packet DataPacket
 	var buf []byte
-	var userFound, exists bool
-	var currentUser *User
+	var exists bool
 	status := 400
 	buf, _ = ioutil.ReadAll(r.Body)
 	packet = loadDataPacket(buf)
-	loginParam := [3]string{packet.Login.User, packet.Login.Pass, packet.Login.Email}
-	DebugHandler.Sys("LoginAttempt::"+loginParam[0], thisModuleSystem)
-	userFound, currentUser = InitUser(sys.db, loginParam[0], loginParam[1])
+	DebugHandler.Sys("LoginAttempt::"+packet.Login.User, "System")
+	userFound, currentUser := InitUser(sys.db, packet.Login.User, packet.Login.Pass)
 	if userFound == true {
-		currentUser, exists = sys.conUsers[loginParam[0]]
-		if exists && sys.conUsers[loginParam[0]].IsOnline() {
-			buf = genDataPacket("", "UserAlreadyLoggedIn", status, loginParam[0])
-			DebugHandler.Sys("LoginFailed::UserLoggedIn::"+loginParam[0], thisModuleSystem)
+		_, exists = sys.conUsers[packet.Login.User]
+		if exists && sys.conUsers[currentUser.GetName()].IsOnline() {
+			buf = genDataPacket("", "UserAlreadyLoggedIn", status, packet.Login.User)
+			DebugHandler.Sys("LoginFailed::UserLoggedIn::"+packet.Login.User, "System")
 		} else {
 			status = 200
+			currentUser.SetOnline(true)
 			if !exists {
-				sys.conUsers[sys.currentUser.GetName()] = currentUser
+				sys.conUsers[currentUser.GetName()] = currentUser
 			}
-			sys.currentUser.SetOnline(true)
-			buf = genDataPacket(sys.currentUser.GetToken(), "LoginSuccessful", status, sys.currentUser.GetName())
-			DebugHandler.Sys("LoginSuccessful::"+sys.currentUser.GetName(), thisModuleSystem)
+			buf = genDataPacket(currentUser.GetToken(), "LoginSuccessful", status, currentUser.GetName())
+			DebugHandler.Sys("LoginSuccessful::"+currentUser.GetName(), "System")
 		}
 	} else {
-		buf = genDataPacket("", "UserNotFound", status, loginParam[0])
-		DebugHandler.Sys("LoginFailed::UserNotFound::"+loginParam[0], thisModuleSystem)
+		buf = genDataPacket("", "UserNotFound", status, packet.Login.User)
+		DebugHandler.Sys("LoginFailed::UserNotFound::"+packet.Login.User, "System")
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -153,21 +146,21 @@ func (sys *System) loginRequest(w http.ResponseWriter, r *http.Request) {
 
 // CreateUser creates a new user entry in the database
 func (sys *System) CreateUser(name string, pass string, email string) {
-	DebugHandler.Sys("CreateUser::"+name, thisModuleDB)
+	DebugHandler.Sys("CreateUser::"+name, "System")
 	_, err := sys.db.sql.Exec(`INSERT INTO users (name, pass, mail) VALUES (?, ?, ?)`, name, pass, email)
 	if err != nil {
-		LogHandler.Err(err, thisModuleDB)
-		DebugHandler.Err(err, thisModuleDB, 3)
+		LogHandler.Err(err, "System")
+		DebugHandler.Err(err, "System", 3)
 	}
 }
 
 // RemoveUser removes a user entry from the database
 func (sys *System) RemoveUser(name string) {
-	DebugHandler.Sys("RemoveUser::"+name, thisModuleDB)
+	DebugHandler.Sys("RemoveUser::"+name, "System")
 	uid, err := GetUserID(sys.db, name)
 	if err != nil {
-		LogHandler.Err(err, thisModuleDB)
-		DebugHandler.Err(err, thisModuleDB, 3)
+		LogHandler.Err(err, "System")
+		DebugHandler.Err(err, "System", 3)
 	} else {
 		tx, err := sys.db.sql.Begin()
 		tx.Exec(`DELETE FROM login_token WHERE uid = ?`, uid)
@@ -175,7 +168,7 @@ func (sys *System) RemoveUser(name string) {
 		tx.Exec(`DELETE FROM sessions WHERE uid = ?`, uid)
 		tx.Exec(`DELETE FROM users WHERE uid = ?`, uid)
 		if err != nil {
-			DebugHandler.Err(err, thisModuleDB, 3)
+			DebugHandler.Err(err, "System", 3)
 			tx.Rollback()
 		} else {
 			tx.Commit()

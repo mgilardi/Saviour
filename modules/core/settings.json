@@ -1,10 +1,15 @@
 {
+  "__comment": "Module Name",
 	"Name": "Core",
-  "Disabled": "False",
+  "__comment": "Cron Interval",
   "Interval": 10,
+  "__comment": "Server Hostname",
   "Hostname": "localhost",
+  "__comment": "Server Port",
   "Port":  "8080",
+  "__comment": "MySQL Username & Password",
   "User": "saviour",
   "Pass": "Wlzv1iwFSV0W6cL4",
+  "__comment": "Cache Entry Expire Time",
   "ExpireTime": 5
 }

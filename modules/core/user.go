@@ -5,11 +5,6 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"errors"
-	"strconv"
-)
-
-const (
-	thisModuleUser = "User"
 )
 
 // User handles users
@@ -30,56 +25,41 @@ func InitUser(db *Database, name string, pass string) (bool, *User) {
 	var uid int
 	var verified = false
 	var user User
+	user.online = false
 	user.db = db
-	DebugHandler.Sys("CheckUserLogin::"+name, thisModuleDB)
+	DebugHandler.Sys("CheckUserLogin::"+name, "User")
 	err := db.sql.QueryRow(`SELECT pass, uid FROM users WHERE name = ?`, name).Scan(&dbPass, &uid)
 	switch {
 	case err == sql.ErrNoRows:
-		DebugHandler.Sys("UserNotFound", thisModuleDB)
+		DebugHandler.Sys("UserNotFound", "User")
 	case err != nil:
-		LogHandler.Err(err, thisModuleDB)
-		DebugHandler.Err(err, thisModuleDB, 3)
+		LogHandler.Err(err, "User")
+		DebugHandler.Err(err, "User", 3)
 	case dbPass == pass:
+		DebugHandler.Sys("LoginVerified::"+name, "User")
 		verified = true
+		user.uid = uid
+		user.name = name
+		user.CheckTokenExists()
 	default:
-		DebugHandler.Sys("InvalidPassword::"+name, thisModuleDB)
-		LogHandler.Warn(errors.New("InvalidPassword::"+name), thisModuleDB)
+		DebugHandler.Sys("InvalidPassword::"+name, "User")
+		LogHandler.Warn(errors.New("InvalidPassword::"+name), "User")
 	}
 	user.cache = CacheHandler
-	user.CheckTokenExists()
-	user.InfoUpdate()
+
 	return verified, &user
 }
 
-// CheckToken checks to see if a token exists in the database if not
+// CheckTokenExists checks to see if a token exists in the database if not
 // it generates one.
 func (user *User) CheckTokenExists() {
-	if !user.CheckToken(user.uid) {
-		user.StoreToken(user.uid, GenToken(32))
-	}
-}
-
-// InfoUpdate calls for the username and token from the database to be
-// held in memory
-func (user *User) InfoUpdate() {
-	userInfo := user.GetInfoMap()
-	user.name = userInfo["Name"].(string)
-	user.token = userInfo["Token"].(string)
-}
-
-// GetInfoMap retrieves the loaded infomap from the database
-func (user *User) GetInfoMap() map[string]interface{} {
-	exists, userInfo := user.cache.GetCacheMap("user:" + strconv.Itoa(user.uid) + ":" + "info")
+	exists, token := user.CheckToken(user.uid)
 	if !exists {
-		var err error
-		userInfo, err = user.GetUserMap(user.uid)
-		if err != nil {
-			LogHandler.Err(err, thisModuleUser)
-			DebugHandler.Err(err, thisModuleUser, 1)
-		}
-		user.cache.SetCacheMap("user:"+strconv.Itoa(user.uid)+":"+"info", userInfo, true)
+		user.token = GenToken(32)
+		user.StoreToken(user.uid, user.token)
+	} else {
+		user.token = token
 	}
-	return userInfo
 }
 
 // GetName returns username
@@ -94,9 +74,8 @@ func (user *User) GetToken() string {
 
 // SetToken generates a new token and writes it to DB
 func (user *User) SetToken() {
-	token := GenToken(32)
-	user.StoreToken(user.uid, token)
-	user.InfoUpdate()
+	user.token = GenToken(32)
+	user.StoreToken(user.uid, user.token)
 }
 
 // IsOnline returns the online flag for the user
@@ -109,98 +88,76 @@ func (user *User) SetOnline(isOnline bool) {
 	user.online = isOnline
 }
 
+// CheckToken checks if the user has a token in the database login_token table
+func (user *User) CheckToken(uid int) (bool, string) {
+	var token string
+	exists := false
+	DebugHandler.Sys("CheckingToken", "User")
+	err := user.db.sql.QueryRow(`SELECT token FROM login_token WHERE uid = ?`, uid).Scan(&token)
+	switch {
+	case err == sql.ErrNoRows:
+		DebugHandler.Sys("TokenNotFound", "User")
+	case err != nil:
+		LogHandler.Err(err, "User")
+		DebugHandler.Err(err, "User", 3)
+	default:
+		DebugHandler.Sys("TokenFound", "User")
+		exists = true
+	}
+	return exists, token
+}
+
+// StoreToken writes user token to the database
+func (user *User) StoreToken(uid int, token string) {
+	DebugHandler.Sys("StoreToken", "User")
+	_, err := user.db.sql.Exec(`INSERT INTO login_token(uid, token) VALUES (?, ?)`+
+		`ON DUPLICATE KEY UPDATE token = ?`, uid, token, token)
+	if err != nil {
+		LogHandler.Err(err, "User")
+		DebugHandler.Err(err, "User", 3)
+	}
+}
+
 // GenToken generates user token of specified length
 func GenToken(length int) string {
 	byte := make([]byte, length)
 	_, err := rand.Read(byte)
 	if err != nil {
-		LogHandler.Err(err, thisModuleUser)
-		DebugHandler.Err(err, thisModuleUser, 1)
+		LogHandler.Err(err, "User")
+		DebugHandler.Err(err, "User", 1)
 	}
 	return base64.URLEncoding.EncodeToString(byte)
-}
-
-// CheckUserExists checks the database for a username and returns true or false
-// if it exists
-func (usr *User) CheckUserExists(name string) bool {
-	DebugHandler.Sys("CheckUserExists::"+name, thisModuleDB)
-	exists := false
-	_, err := GetUserID(usr.db, name)
-	switch {
-	case err == sql.ErrNoRows:
-		DebugHandler.Sys("UserNotFound", thisModuleDB)
-	case err != nil:
-		LogHandler.Err(err, thisModuleDB)
-		DebugHandler.Err(err, thisModuleDB, 3)
-	default:
-		exists = true
-	}
-	return exists
-}
-
-// GetUserMap loads user information from the database and returns it
-// inside of a map
-func (usr User) GetUserMap(uid int) (map[string]interface{}, error) {
-	var userData map[string]interface{}
-	var name, email, token string
-	err := usr.db.sql.QueryRow(`SELECT name, mail, token FROM users JOIN login_token ON users.uid = login_token.uid AND users.uid = ?`, uid).Scan(&name, &email, &token)
-	switch {
-	case err == sql.ErrNoRows:
-		DebugHandler.Sys("UserNotFound", thisModuleDB)
-	case err != nil:
-		LogHandler.Err(err, thisModuleDB)
-		DebugHandler.Err(err, thisModuleDB, 3)
-	default:
-		userData = make(map[string]interface{})
-		userData["Name"] = name
-		userData["Email"] = email
-		userData["Token"] = token
-		DebugHandler.Sys("GetUserMap::"+userData["Name"].(string), thisModuleDB)
-	}
-	return userData, err
-}
-
-// CheckToken checks if the user has a token in the database login_token table
-func (usr User) CheckToken(uid int) bool {
-	var token string
-	exists := false
-	DebugHandler.Sys("CheckingToken", thisModuleDB)
-	err := usr.db.sql.QueryRow(`SELECT token FROM login_token WHERE uid = ?`, uid).Scan(&token)
-	switch {
-	case err == sql.ErrNoRows:
-		DebugHandler.Sys("TokenNotFound", thisModuleDB)
-	case err != nil:
-		LogHandler.Err(err, thisModuleDB)
-		DebugHandler.Err(err, thisModuleDB, 3)
-	default:
-		DebugHandler.Sys("TokenFound", thisModuleDB)
-		exists = true
-	}
-	return exists
-}
-
-// StoreToken writes user token to the database
-func (usr User) StoreToken(uid int, token string) {
-	DebugHandler.Sys("StoreToken", thisModuleDB)
-	_, err := usr.db.sql.Exec(`INSERT INTO login_token(uid, token) VALUES (?, ?)`+
-		`ON DUPLICATE KEY UPDATE token = ?`, uid, token, token)
-	if err != nil {
-		LogHandler.Err(err, thisModuleDB)
-		DebugHandler.Err(err, thisModuleDB, 3)
-	}
 }
 
 // GetUserID will return the database uid for a username
 func GetUserID(db *Database, name string) (int, error) {
 	var uid int
-	DebugHandler.Sys("GetUserID::"+name, thisModuleDB)
+	DebugHandler.Sys("GetUserID::"+name, "User")
 	err := db.sql.QueryRow("SELECT uid FROM users WHERE name = ?", name).Scan(&uid)
 	switch {
 	case err == sql.ErrNoRows:
-		DebugHandler.Sys("UserNotFound", thisModuleDB)
+		DebugHandler.Sys("UserNotFound", "User")
 	case err != nil:
-		LogHandler.Err(err, thisModuleDB)
-		DebugHandler.Err(err, thisModuleDB, 3)
+		LogHandler.Err(err, "User")
+		DebugHandler.Err(err, "User", 3)
 	}
 	return uid, err
+}
+
+// CheckUserExists checks the database for a username and returns true or false
+// if it exists
+func CheckUserExists(db *Database, name string) bool {
+	DebugHandler.Sys("CheckUserExists::"+name, "User")
+	exists := false
+	_, err := GetUserID(db, name)
+	switch {
+	case err == sql.ErrNoRows:
+		DebugHandler.Sys("UserNotFound", "User")
+	case err != nil:
+		LogHandler.Err(err, "User")
+		DebugHandler.Err(err, "User", 3)
+	default:
+		exists = true
+	}
+	return exists
 }

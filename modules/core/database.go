@@ -9,10 +9,6 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-const (
-	thisModuleDB = "Database"
-)
-
 // Database tyoe contains the sql access, options, logger, and the dsn for sql login
 type Database struct {
 	sql     *sql.DB
@@ -25,29 +21,29 @@ func InitDatabase() *Database {
 	var db Database
 	var err error
 	var user, pass string
-	DebugHandler.Sys("Starting", thisModuleDB)
+	DebugHandler.Sys("Starting", "DB")
 	db.options = GetOptions("Core")
 	if err != nil {
-		DebugHandler.Err(err, thisModuleDB, 1)
+		DebugHandler.Err(err, "DB", 1)
 	}
 	if db.options["User"] == nil {
-		DebugHandler.Err(err, thisModuleDB, 1)
+		DebugHandler.Err(err, "DB", 1)
 	}
 	if db.options["Pass"] == nil {
-		DebugHandler.Err(err, thisModuleDB, 1)
+		DebugHandler.Err(err, "DB", 1)
 	}
 	user = db.options["User"].(string)
 	pass = db.options["Pass"].(string)
 	db.dsn = user + ":" + pass + "@/saviour"
-	DebugHandler.Sys("DSNLoaded", thisModuleDB)
+	DebugHandler.Sys("DSNLoaded", "DB")
 	// Open Database
 	db.sql, err = sql.Open("mysql", db.dsn)
 	if err != nil {
-		DebugHandler.Err(err, thisModuleDB, 1)
+		DebugHandler.Err(err, "DB", 1)
 	}
 	err = db.sql.Ping()
 	if err != nil {
-		DebugHandler.Err(err, thisModuleDB, 1)
+		DebugHandler.Err(err, "DB", 1)
 	}
 	InitLogger(&db)
 	InitCache(&db)
@@ -60,18 +56,18 @@ func (db *Database) CheckDB() {
 	tables := make([]string, 0)
 	rows, err := db.sql.Query(`SHOW TABLES`)
 	if err != nil {
-		LogHandler.Err(err, thisModuleDB)
-		DebugHandler.Err(err, thisModuleDB, 1)
+		LogHandler.Err(err, "DB")
+		DebugHandler.Err(err, "DB", 1)
 	}
-	DebugHandler.Sys("AvaliableTables", thisModuleDB)
+	DebugHandler.Sys("AvaliableTables", "DB")
 	for rows.Next() {
 		var table string
 		err = rows.Scan(&table)
 		if err != nil {
-			LogHandler.Err(err, thisModuleDB)
-			DebugHandler.Err(err, thisModuleDB, 1)
+			LogHandler.Err(err, "DB")
+			DebugHandler.Err(err, "DB", 1)
 		}
-		DebugHandler.Sys(table, thisModuleDB)
+		DebugHandler.Sys(table, "DB")
 		tables = append(tables, table)
 	}
 	db.createTables(tables)
