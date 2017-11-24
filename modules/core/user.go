@@ -27,23 +27,21 @@ func InitUser(db *Database, name string, pass string) (bool, *User) {
 	var user User
 	user.online = false
 	user.db = db
-	DebugHandler.Sys("CheckUserLogin::"+name, "User")
+	Sys("CheckUserLogin::"+name, "User")
 	err := db.sql.QueryRow(`SELECT pass, uid FROM users WHERE name = ?`, name).Scan(&dbPass, &uid)
 	switch {
 	case err == sql.ErrNoRows:
-		DebugHandler.Sys("UserNotFound", "User")
+		Sys("UserNotFound", "User")
 	case err != nil:
-		LogHandler.Err(err, "User")
-		DebugHandler.Err(err, "User", 3)
+		Error(err, "User")
 	case dbPass == pass:
-		DebugHandler.Sys("LoginVerified::"+name, "User")
+		Sys("LoginVerified::"+name, "User")
 		verified = true
 		user.uid = uid
 		user.name = name
 		user.CheckTokenExists()
 	default:
-		DebugHandler.Sys("InvalidPassword::"+name, "User")
-		LogHandler.Warn(errors.New("InvalidPassword::"+name), "User")
+		Warn(errors.New("InvalidPassword::"+name), "User")
 	}
 	user.cache = CacheHandler
 
@@ -92,16 +90,15 @@ func (user *User) SetOnline(isOnline bool) {
 func (user *User) CheckToken(uid int) (bool, string) {
 	var token string
 	exists := false
-	DebugHandler.Sys("CheckingToken", "User")
+	Sys("CheckingToken", "User")
 	err := user.db.sql.QueryRow(`SELECT token FROM login_token WHERE uid = ?`, uid).Scan(&token)
 	switch {
 	case err == sql.ErrNoRows:
-		DebugHandler.Sys("TokenNotFound", "User")
+		Sys("TokenNotFound", "User")
 	case err != nil:
-		LogHandler.Err(err, "User")
-		DebugHandler.Err(err, "User", 3)
+		Error(err, "System")
 	default:
-		DebugHandler.Sys("TokenFound", "User")
+		Sys("TokenFound", "User")
 		exists = true
 	}
 	return exists, token
@@ -109,12 +106,11 @@ func (user *User) CheckToken(uid int) (bool, string) {
 
 // StoreToken writes user token to the database
 func (user *User) StoreToken(uid int, token string) {
-	DebugHandler.Sys("StoreToken", "User")
+	Sys("StoreToken", "User")
 	_, err := user.db.sql.Exec(`INSERT INTO login_token(uid, token) VALUES (?, ?)`+
 		`ON DUPLICATE KEY UPDATE token = ?`, uid, token, token)
 	if err != nil {
-		LogHandler.Err(err, "User")
-		DebugHandler.Err(err, "User", 3)
+		Error(err, "System")
 	}
 }
 
@@ -123,8 +119,7 @@ func GenToken(length int) string {
 	byte := make([]byte, length)
 	_, err := rand.Read(byte)
 	if err != nil {
-		LogHandler.Err(err, "User")
-		DebugHandler.Err(err, "User", 1)
+		Error(err, "System")
 	}
 	return base64.URLEncoding.EncodeToString(byte)
 }
@@ -132,14 +127,13 @@ func GenToken(length int) string {
 // GetUserID will return the database uid for a username
 func GetUserID(db *Database, name string) (int, error) {
 	var uid int
-	DebugHandler.Sys("GetUserID::"+name, "User")
+	Sys("GetUserID::"+name, "User")
 	err := db.sql.QueryRow("SELECT uid FROM users WHERE name = ?", name).Scan(&uid)
 	switch {
 	case err == sql.ErrNoRows:
-		DebugHandler.Sys("UserNotFound", "User")
+		Sys("UserNotFound", "User")
 	case err != nil:
-		LogHandler.Err(err, "User")
-		DebugHandler.Err(err, "User", 3)
+		Error(err, "System")
 	}
 	return uid, err
 }
@@ -147,15 +141,14 @@ func GetUserID(db *Database, name string) (int, error) {
 // CheckUserExists checks the database for a username and returns true or false
 // if it exists
 func CheckUserExists(db *Database, name string) bool {
-	DebugHandler.Sys("CheckUserExists::"+name, "User")
+	Sys("CheckUserExists::"+name, "User")
 	exists := false
 	_, err := GetUserID(db, name)
 	switch {
 	case err == sql.ErrNoRows:
-		DebugHandler.Sys("UserNotFound", "User")
+		Sys("UserNotFound", "User")
 	case err != nil:
-		LogHandler.Err(err, "User")
-		DebugHandler.Err(err, "User", 3)
+		Error(err, "System")
 	default:
 		exists = true
 	}

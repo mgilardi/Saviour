@@ -12,9 +12,9 @@ func TestUser_CheckUserLogin(t *testing.T) {
 	exists, ThisUser = InitUser(InitDatabase(), "Admin", "Password")
 	if exists {
 		// Pass
-		DebugHandler.Sys("Loading::"+ThisUser.GetName(), "Test")
-		DebugHandler.Sys("Token::"+ThisUser.GetToken(), "Test")
-		DebugHandler.Sys("IsOnline::"+strconv.FormatBool(ThisUser.IsOnline()), "Test")
+		Sys("Loading::"+ThisUser.GetName(), "Test")
+		Sys("Token::"+ThisUser.GetToken(), "Test")
+		Sys("IsOnline::"+strconv.FormatBool(ThisUser.IsOnline()), "Test")
 	} else {
 		t.Error("LoadingAdminFailed")
 	}

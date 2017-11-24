@@ -8,10 +8,10 @@ import (
 func TestCron_InitCron(t *testing.T) {
 	InitDebug(true)
 	InitCron()
-	CronHandler.Add("Test", false, func() {
-		DebugHandler.Sys("Test", "Test")
+	CronHandler.Add(func() {
+		Sys("Test", "Test")
 	})
-	CronHandler.ForceStart()
+	CronHandler.Push()
 	CronHandler.Interval(1)
 	time.Sleep(50)
 }

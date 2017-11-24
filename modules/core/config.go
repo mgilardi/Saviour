@@ -11,10 +11,6 @@ import (
 	"strings"
 )
 
-const (
-	thisModuleConfig = "Config"
-)
-
 // GetOptions returns an map with the loaded options from the json settings file
 func GetOptions(module string) map[string]interface{} {
 	optionsMap := make(map[string]interface{})
@@ -22,11 +18,11 @@ func GetOptions(module string) map[string]interface{} {
 		strings.ToLower(module) + "/settings.json"
 	raw, err := ioutil.ReadFile(optionsMap["Path"].(string))
 	if err != nil {
-		DebugHandler.Err(err, thisModuleConfig, 1)
+		Error(err, "Config")
 	}
 	err = json.Unmarshal(raw, &optionsMap)
 	if err != nil {
-		DebugHandler.Err(err, thisModuleConfig, 1)
+		Error(err, "Config")
 	}
 	return optionsMap
 }
@@ -37,7 +33,7 @@ func GetAllOptions() []map[string]interface{} {
 	var currentModule map[string]interface{}
 	dir, err := ioutil.ReadDir(os.Getenv("GOPATH") + "/src/Saviour/modules/")
 	if err != nil {
-		DebugHandler.Err(err, thisModuleConfig, 1)
+		Error(err, "Config")
 	}
 	for _, file := range dir {
 		currentModule = GetOptions(file.Name())

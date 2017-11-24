@@ -38,8 +38,7 @@ func genDataPacket(token string, message string, status int, username string) []
 	packet.Saviour.Username = username
 	buf, err := json.Marshal(&packet)
 	if err != nil {
-		LogHandler.Err(err, "System")
-		DebugHandler.Err(err, "System", 3)
+		Error(err, "System")
 	}
 	return buf
 }
@@ -49,8 +48,7 @@ func loadDataPacket(buf []byte) DataPacket {
 	var packet DataPacket
 	err := json.Unmarshal(buf, &packet)
 	if err != nil {
-		LogHandler.Err(err, "System")
-		DebugHandler.Err(err, "System", 3)
+		Error(err, "System")
 	}
 	return sanitizePacket(packet)
 }
@@ -69,12 +67,12 @@ func InitSystem(datab *Database) {
 	sys.conUsers = make(map[string]*User)
 	sys.db = datab
 	sys.cache = CacheHandler
-	DebugHandler.Sys("Starting", "System")
+	Sys("Starting", "System")
 	exists, options := sys.cache.GetCacheMap("core:config")
 	if exists {
 		sys.hostname = options["Hostname"].(string)
 		sys.port = options["Port"].(string)
-		DebugHandler.Sys("LoadedConfigFromCache::"+options["Name"].(string), "System")
+		Sys("LoadedConfigFromCache::"+options["Name"].(string), "System")
 	}
 	sys.startServ()
 }
@@ -89,7 +87,7 @@ func (sys *System) handleRequest() {
 	servRouter := mux.NewRouter()
 	servRouter.HandleFunc("/", sys.indexPage)
 	servRouter.HandleFunc("/login", sys.loginRequest).Methods("POST")
-	DebugHandler.Err(http.ListenAndServe(sys.hostname+":"+sys.port, servRouter), "System", 1)
+	Error(http.ListenAndServe(sys.hostname+":"+sys.port, servRouter), "System")
 }
 
 // indexPage handles index page
@@ -105,7 +103,7 @@ func (sys *System) createRequest(w http.ResponseWriter, r *http.Request) {
 	buf, _ = ioutil.ReadAll(r.Body)
 	packet = loadDataPacket(buf)
 	loginParam := [3]string{packet.Login.User, packet.Login.Pass, packet.Login.Email}
-	DebugHandler.Sys("CreatingUser::"+loginParam[0], "System")
+	Sys("CreatingUser::"+loginParam[0], "System")
 }
 
 // loginRequest handles initial login, if user is not found or password is incorrect it will return a UserNotFound
@@ -119,13 +117,13 @@ func (sys *System) loginRequest(w http.ResponseWriter, r *http.Request) {
 	status := 400
 	buf, _ = ioutil.ReadAll(r.Body)
 	packet = loadDataPacket(buf)
-	DebugHandler.Sys("LoginAttempt::"+packet.Login.User, "System")
+	Sys("LoginAttempt::"+packet.Login.User, "System")
 	userFound, currentUser := InitUser(sys.db, packet.Login.User, packet.Login.Pass)
 	if userFound == true {
 		_, exists = sys.conUsers[packet.Login.User]
 		if exists && sys.conUsers[currentUser.GetName()].IsOnline() {
 			buf = genDataPacket("", "UserAlreadyLoggedIn", status, packet.Login.User)
-			DebugHandler.Sys("LoginFailed::UserLoggedIn::"+packet.Login.User, "System")
+			Sys("LoginFailed::UserLoggedIn::"+packet.Login.User, "System")
 		} else {
 			status = 200
 			currentUser.SetOnline(true)
@@ -133,11 +131,11 @@ func (sys *System) loginRequest(w http.ResponseWriter, r *http.Request) {
 				sys.conUsers[currentUser.GetName()] = currentUser
 			}
 			buf = genDataPacket(currentUser.GetToken(), "LoginSuccessful", status, currentUser.GetName())
-			DebugHandler.Sys("LoginSuccessful::"+currentUser.GetName(), "System")
+			Sys("LoginSuccessful::"+currentUser.GetName(), "System")
 		}
 	} else {
 		buf = genDataPacket("", "UserNotFound", status, packet.Login.User)
-		DebugHandler.Sys("LoginFailed::UserNotFound::"+packet.Login.User, "System")
+		Sys("LoginFailed::UserNotFound::"+packet.Login.User, "System")
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -146,21 +144,19 @@ func (sys *System) loginRequest(w http.ResponseWriter, r *http.Request) {
 
 // CreateUser creates a new user entry in the database
 func (sys *System) CreateUser(name string, pass string, email string) {
-	DebugHandler.Sys("CreateUser::"+name, "System")
+	Sys("CreateUser::"+name, "System")
 	_, err := sys.db.sql.Exec(`INSERT INTO users (name, pass, mail) VALUES (?, ?, ?)`, name, pass, email)
 	if err != nil {
-		LogHandler.Err(err, "System")
-		DebugHandler.Err(err, "System", 3)
+		Error(err, "System")
 	}
 }
 
 // RemoveUser removes a user entry from the database
 func (sys *System) RemoveUser(name string) {
-	DebugHandler.Sys("RemoveUser::"+name, "System")
+	Sys("RemoveUser::"+name, "System")
 	uid, err := GetUserID(sys.db, name)
 	if err != nil {
-		LogHandler.Err(err, "System")
-		DebugHandler.Err(err, "System", 3)
+		Error(err, "System")
 	} else {
 		tx, err := sys.db.sql.Begin()
 		tx.Exec(`DELETE FROM login_token WHERE uid = ?`, uid)
@@ -168,7 +164,7 @@ func (sys *System) RemoveUser(name string) {
 		tx.Exec(`DELETE FROM sessions WHERE uid = ?`, uid)
 		tx.Exec(`DELETE FROM users WHERE uid = ?`, uid)
 		if err != nil {
-			DebugHandler.Err(err, "System", 3)
+			Error(err, "System")
 			tx.Rollback()
 		} else {
 			tx.Commit()
