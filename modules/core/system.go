@@ -68,12 +68,10 @@ func InitSystem(datab *Database) {
 	sys.db = datab
 	sys.cache = CacheHandler
 	Sys("Starting", "System")
-	exists, options := sys.cache.GetCacheMap("core:config")
-	if exists {
-		sys.hostname = options["Hostname"].(string)
-		sys.port = options["Port"].(string)
-		Sys("LoadedConfigFromCache::"+options["Name"].(string), "System")
-	}
+	options := GetOptions("core")
+	sys.hostname = options["Hostname"].(string)
+	sys.port = options["Port"].(string)
+	Sys("LoadedConfigFromCache::"+options["Name"].(string), "System")
 	sys.startServ()
 }
 

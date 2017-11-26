@@ -5,15 +5,15 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"errors"
+	"strconv"
 )
 
 // User handles users
 type User struct {
-	uid         int
-	name, token string
-	db          *Database
-	cache       *Cache
-	online      bool
+	uid                int
+	name, token, email string
+	db                 *Database
+	online             bool
 }
 
 // InitUser constructs the user on initial login
@@ -36,15 +36,13 @@ func InitUser(db *Database, name string, pass string) (bool, *User) {
 		Error(err, "User")
 	case dbPass == pass:
 		Sys("LoginVerified::"+name, "User")
-		verified = true
-		user.uid = uid
 		user.name = name
 		user.CheckTokenExists()
+		user.GetCache()
+		verified = true
 	default:
 		Warn(errors.New("InvalidPassword::"+name), "User")
 	}
-	user.cache = CacheHandler
-
 	return verified, &user
 }
 
@@ -112,6 +110,38 @@ func (user *User) StoreToken(uid int, token string) {
 	if err != nil {
 		Error(err, "System")
 	}
+}
+
+// GetCache requests user info from cache
+func (user *User) GetCache() {
+	exists, userCache := CacheHandler.GetCache(user)
+	if exists {
+		user.uid = userCache["uid"].(int)
+		user.email = userCache["email"].(string)
+		user.token = userCache["token"].(string)
+	}
+}
+
+// Cache is called to load user information into the cache
+func (user *User) Cache() (string, map[string]interface{}) {
+	cid := user.GetName() + ":" + strconv.Itoa(user.uid) + ":UserData"
+	cacheMap := user.loadCacheValues()
+	return cid, cacheMap
+}
+
+// loadCacheValues loads the user information from the database and places
+// them in a map for loading into the cache
+func (user *User) loadCacheValues() map[string]interface{} {
+	var uid int
+	var name, email, token string
+	cacheMap := make(map[string]interface{})
+	user.db.sql.QueryRow(`SELECT users.uid, name, mail, token FROM users JOIN login_token WHERE users.uid = login_token.uid & users.uid = ?`, user.uid).Scan(&uid, &name, &email, &token)
+	Sys("GetUserVal::"+strconv.Itoa(uid)+":"+name+":"+email+":"+token, "User")
+	cacheMap["uid"] = uid
+	cacheMap["name"] = name
+	cacheMap["email"] = email
+	cacheMap["token"] = token
+	return cacheMap
 }
 
 // GenToken generates user token of specified length

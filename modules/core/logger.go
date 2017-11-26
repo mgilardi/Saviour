@@ -11,10 +11,7 @@ import (
 var logHandler []log
 
 type log interface {
-	Sys(string, string)
-	Warn(error, string)
-	Err(error, string)
-	Fatal(error, string)
+	SetError(string, string, int)
 	CheckLevel() bool
 	Enabled() bool
 	Write()
@@ -35,31 +32,46 @@ func InitDebug(on bool) {
 	logHandler = append(logHandler, &newDebug)
 }
 
+func (dbg *debug) SetError(message string, module string, typ int) {
+	switch typ {
+	case 0:
+		dbg.Sys(message, module)
+	case 1:
+		dbg.Warn(message, module)
+	case 2:
+		dbg.Err(message, module)
+	case 3:
+		dbg.Fatal(message, module)
+		os.Exit(1)
+	}
+}
+
 // Sys outputs system messsages in the console when dbg is enabled
 func (dbg *debug) Sys(message string, module string) {
 	dbg.currentError = "Saviour::" + module + "::" + message
-	dbg.currentLevel = 2
-	handleLog(dbg)
-}
-
-// Warn writes warning messages
-func (dbg *debug) Warn(err error, module string) {
-	dbg.currentError = "Warn::" + module + "::" + err.Error()
 	dbg.currentLevel = 3
 	handleLog(dbg)
 }
 
+// Warn writes warning messages
+func (dbg *debug) Warn(err string, module string) {
+	dbg.currentError = "Warn::" + module + "::" + err
+	dbg.currentLevel = 2
+	handleLog(dbg)
+}
+
 // Err writes error messages
-func (dbg *debug) Err(err error, module string) {
-	dbg.currentError = "Error::" + module + "::" + err.Error()
+func (dbg *debug) Err(err string, module string) {
+	dbg.currentError = "Error::" + module + "::" + err
 	dbg.currentLevel = 1
 	handleLog(dbg)
 }
 
 // Fatal Writes Fatal Messages
-func (dbg *debug) Fatal(err error, module string) {
-	dbg.currentError = "Fatal::" + module + "::" + err.Error()
+func (dbg *debug) Fatal(err string, module string) {
+	dbg.currentError = "Fatal::" + module + "::" + err
 	dbg.currentLevel = 0
+	dbg.isOn = true
 	handleLog(dbg)
 }
 
@@ -94,9 +106,22 @@ type logger struct {
 func InitLogger(loadDB *Database) {
 	var newLogDB logger
 	newLogDB.isOn = true
-	newLogDB.logLevel = 1
+	newLogDB.logLevel = 2
 	newLogDB.db = loadDB
 	logHandler = append(logHandler, &newLogDB)
+}
+
+func (logger *logger) SetError(message string, module string, typ int) {
+	switch typ {
+	case 0:
+		logger.Sys(message, module)
+	case 1:
+		logger.Warn(message, module)
+	case 2:
+		logger.Err(message, module)
+	case 3:
+		logger.Fatal(message, module)
+	}
 }
 
 // Sys writes status message
@@ -104,33 +129,33 @@ func (logger *logger) Sys(message string, module string) {
 	logger.logType = "Status"
 	logger.logModule = module
 	logger.logMsg = message
-	logger.currentLevel = 2
-	handleLog(logger)
-}
-
-// Warn writes warning messages
-func (logger *logger) Warn(err error, module string) {
-	logger.logType = "Warn"
-	logger.logModule = module
-	logger.logMsg = err.Error()
 	logger.currentLevel = 3
 	handleLog(logger)
 }
 
+// Warn writes warning messages
+func (logger *logger) Warn(err string, module string) {
+	logger.logType = "Warn"
+	logger.logModule = module
+	logger.logMsg = err
+	logger.currentLevel = 2
+	handleLog(logger)
+}
+
 // Err writes error messages
-func (logger *logger) Err(err error, module string) {
+func (logger *logger) Err(err string, module string) {
 	logger.logType = "Error"
 	logger.logModule = module
-	logger.logMsg = err.Error()
+	logger.logMsg = err
 	logger.currentLevel = 1
 	handleLog(logger)
 }
 
 // Fatal Writes Fatal Messages
-func (logger *logger) Fatal(err error, module string) {
+func (logger *logger) Fatal(err string, module string) {
 	logger.logType = "Fatal"
 	logger.logModule = module
-	logger.logMsg = err.Error()
+	logger.logMsg = err
 	logger.currentLevel = 0
 	handleLog(logger)
 }
@@ -158,38 +183,44 @@ func (logger *logger) Write() {
 	}
 }
 
+// System Message Constants
+const (
+	SYS   = 0
+	WARN  = 1
+	ERROR = 2
+	FATAL = 3
+)
+
 // Error outputs an error to both debug and logger
 func Error(err error, module string) {
-	for _, out := range logHandler {
-		out.Err(err, module)
-	}
+	msgHandle(err.Error(), module, ERROR)
 }
 
 // Sys output a system message to both debug and logger
 func Sys(msg string, module string) {
-	for _, out := range logHandler {
-		out.Sys(msg, module)
-	}
+	msgHandle(msg, module, SYS)
 }
 
 // Warn outputs a warning message to both debug and logger
 func Warn(err error, module string) {
-	for _, out := range logHandler {
-		out.Warn(err, module)
-	}
+	msgHandle(err.Error(), module, WARN)
 }
 
 // Fatal outputs a fatal message to both debug and logger
 func Fatal(err error, module string) {
-	for _, out := range logHandler {
-		out.Fatal(err, module)
-	}
+	msgHandle(err.Error(), module, FATAL)
 	os.Exit(1)
 }
 
+func msgHandle(msg string, module string, typ int) {
+	for _, logData := range logHandler {
+		logData.SetError(msg, module, typ)
+	}
+}
+
 // handleLog does checks for both Debug/Logger and writes the output
-func handleLog(out log) {
-	if out.Enabled() && out.CheckLevel() {
-		out.Write()
+func handleLog(output log) {
+	if output.Enabled() && output.CheckLevel() {
+		output.Write()
 	}
 }

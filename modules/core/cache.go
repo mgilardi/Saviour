@@ -4,170 +4,129 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/gob"
-	"strings"
+	"strconv"
 	"time"
 )
 
-// CacheHandler global cache access
+// CacheHandler Global Access
 var CacheHandler *Cache
 
-// Data holds the data input/output of the binary encoder/decoder
-type Data struct {
+// CacheObj interface for any struct containing the Cache method
+type CacheObj interface {
+	Cache() (string, map[string]interface{})
+}
+
+// CacheData binary encoding struct for the cache map
+type CacheData struct {
 	DataMap map[string]interface{}
 }
 
-// Cache holds the options, buffer, and db access
+// Cache struct holds the
 type Cache struct {
 	expireTime time.Duration
-	buf        bytes.Buffer
 	db         *Database
 }
 
-// InitCache constructs the cache object
+// InitCache sets up the CacheHandler global variable
 func InitCache(db *Database) {
-	var newCache Cache
-	Sys("Starting", "Database")
-	newCache.db = db
-	options := GetOptions("Core")
-	newCache.expireTime = time.Duration(int(options["ExpireTime"].(float64)))
-	newCache.CacheOptions()
-	CacheHandler = &newCache
+	var cache Cache
+	cache.db = db
+	options := GetOptions("core")
+	cache.expireTime = time.Duration(int(options["ExpireTime"].(float64)))
+	CacheHandler = &cache
 	CronHandler.Add(func() {
 		CacheHandler.CheckCache()
 	})
 }
 
-// CacheOptions loads the modules configuration files into cache
-func (cache *Cache) CacheOptions() {
-	Sys("CacheOptions", "Cache")
-	allOptions := GetAllOptions()
-	for _, opt := range allOptions {
-		cache.SetCacheMap(strings.ToLower(opt["Name"].(string)+":config"), opt, false)
-	}
-}
-
-// CheckCache checks for expired cache entrys
-func (cache *Cache) CheckCache() {
-	Sys("CheckCacheForExpired", "Cache")
-	cache.checkCache()
-}
-
-// ClearAllCache removes all the records from the cache and reloads module options
-func (cache *Cache) ClearAllCache() {
-	Sys("ClearAllCache", "Cache")
-	cache.clearCache()
-	//cache.CacheOptions()
-}
-
-// SetCacheMap converts map into a binary string and loads the string into the database
-// if the expires flag is false then the cached map will be added to the table with NULL
-// for the expires tag and will not be removed when a CheckCache() occurs. If the expires
-// flag is set to true a unix time will be written to the expires column of the record
-// base on the configuration value of ExpireTime in minutes.
-func (cache *Cache) SetCacheMap(cid string, data map[string]interface{}, expires bool) {
-	var denc Data
-	Sys("SetCacheMap::"+cid, "Cache")
-	gob.Register(Data{})
-	cache.buf.Reset()
-	denc.DataMap = data
-	enc := gob.NewEncoder(&cache.buf)
-	err := enc.Encode(&denc)
-	if err != nil {
-		Error(err, "Cache")
-	}
-	if !expires {
-		cache.writeCache(cid, cache.buf.Bytes())
-	} else {
-		unixExpTime := time.Unix(0, time.Now().Add(time.Duration(cache.expireTime*time.Minute)).UnixNano())
-		cache.writeCacheExp(cid, cache.buf.Bytes(), unixExpTime.Unix())
-	}
-}
-
-// GetCacheMap returns requested cache map
-func (cache *Cache) GetCacheMap(cid string) (bool, map[string]interface{}) {
-	var data Data
-	Sys("GetCacheMap::"+cid, "Cache")
-	gob.Register(Data{})
-	exists := false
-	cache.buf.Reset()
-	dec := gob.NewDecoder(&cache.buf)
-	cacheExists, cacheData := cache.readCache(cid)
-	if cacheExists {
-		_, err := cache.buf.Write(cacheData)
-		if err != nil {
-			Error(err, "Cache")
-		}
-		err = dec.Decode(&data)
-		if err != nil {
-			Error(err, "Cache")
-		} else {
-			exists = true
-		}
-	}
-	return exists, data.DataMap
-}
-
-// WriteCache creates a new cache entry
-func (cache *Cache) writeCache(cid string, data []byte) {
-	//debug.DebugHandler.Sys("WriteCache", thisModule)
-	_, err := cache.db.sql.Exec(`INSERT INTO cache (cid, data) VALUES (?, ?)`+
-		`ON DUPLICATE KEY UPDATE data = ?`, cid, data, data)
-	if err != nil {
-		Error(err, "Cache")
-	}
-}
-
-// WriteCacheExp creates a new cache entry that expires
-func (cache *Cache) writeCacheExp(cid string, data []byte, expires int64) {
-	//debug.DebugHandler.Sys("WriteCacheExp", thisModule)
-	_, err := cache.db.sql.Exec(`INSERT INTO cache (cid, data, expires) VALUES (?, ?, ?)`+
-		`ON DUPLICATE KEY UPDATE data = ?, expires = ?`, cid, data, expires, data, expires)
-	if err != nil {
-		Error(err, "Cache")
-	}
-}
-
-// ReadCache returns a cache entry
-func (cache *Cache) readCache(cid string) (bool, []byte) {
-	var data []byte
+// GetCache will return the cache map if the map is not in the cache it will
+// be automatically loaded
+func (cache *Cache) GetCache(obj CacheObj) (bool, map[string]interface{}) {
+	var cacheData CacheData
+	var dbData []byte
 	var expires sql.NullInt64
 	var exists bool
-	Sys("ReadCache", "Cache")
-	err := cache.db.sql.QueryRow(`SELECT data, expires FROM cache WHERE cid = ?`, cid).Scan(&data, &expires)
+	var buf bytes.Buffer
+	var cid string
+	var err error
+	exists = false
+	cid, _ = obj.Cache()
+	err = cache.db.sql.QueryRow(`SELECT data, expires FROM cache WHERE cid = ?`, cid).Scan(&dbData, &expires)
 	switch {
 	case err == sql.ErrNoRows:
-		Sys("CacheNotFound", "Cache")
-		exists = false
+		// Cache Row Not found
+		Sys("CacheEntryNotFound::Creating", "Cache")
+		cache.SetCache(obj)
+		cache.db.sql.QueryRow(`SELECT data, expires FROM cache WHERE cid = ?`, cid).Scan(&dbData, &expires)
+		exists = true
 	case err != nil:
 		Error(err, "Cache")
-		exists = false
 	case expires.Valid:
-		if expires.Int64 < time.Now().Unix() {
-			exists = false
+		if !(expires.Int64 < time.Now().Unix()) {
+			exists = true
 		} else {
+			cache.SetCache(obj)
+			cache.db.sql.QueryRow(`SELECT data, expires FROM cache WHERE cid = ?`, cid).Scan(&dbData, &expires)
 			exists = true
 		}
 	default:
 		exists = true
 	}
-	return exists, data
+	if exists {
+		gob.Register(CacheData{})
+		decoder := gob.NewDecoder(&buf)
+
+		_, err = buf.Write(dbData)
+		if err != nil {
+			Error(err, "Cache")
+		}
+		err := decoder.Decode(&cacheData)
+		if err != nil {
+			Error(err, "Cache")
+		}
+	}
+	return exists, cacheData.DataMap
 }
 
-// ClearCache clears all records in cache table
-func (cache *Cache) clearCache() {
-	_, err := cache.db.sql.Exec(`TRUNCATE TABLE cache`)
+// SetCache makes a new cache entry in the database
+func (cache *Cache) SetCache(obj CacheObj) {
+	var cacheData CacheData
+	var buf bytes.Buffer
+	var cid string
+	var err error
+	var expTime int64
+	cid, cacheData.DataMap = obj.Cache()
+	gob.Register(CacheData{})
+	encoder := gob.NewEncoder(&buf)
+	err = encoder.Encode(&cacheData)
+	if err != nil {
+		Error(err, "Cache")
+	}
+	expTime = time.Unix(0, time.Now().Add(time.Duration(cache.expireTime*time.Minute)).UnixNano()).Unix()
+	Sys("WritingCache::"+cid+":"+strconv.FormatInt(expTime, 10), "Cache")
+	_, err = cache.db.sql.Exec(`INSERT INTO cache (cid, data, expires) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE data = ?, expires = ?`, cid, buf.Bytes(), expTime, buf.Bytes(), expTime)
 	if err != nil {
 		Error(err, "Cache")
 	}
 }
 
+// ClearCache clears all records in cache table
+func (cache *Cache) ClearCache() {
+	_, err := cache.db.sql.Exec(`TRUNCATE TABLE cache`)
+	if err != nil {
+		Error(err, "Cache")
+	}
+	cache.db.ResetIncrement("cache")
+}
+
 // CheckCache iterates through cache records checks if the record is expired
 // if the record is expired the record is deleted, if the record has NULL for
 // a value it is permanent and is skipped, if the record has not expired it is skipped
-func (cache *Cache) checkCache() {
+func (cache *Cache) CheckCache() {
 	var cid string
 	var expires sql.NullInt64
 	rows, err := cache.db.sql.Query(`SELECT cid, expires FROM cache`)
+	Sys("CheckingForExpiredEntrys", "Cache")
 	switch {
 	case err == sql.ErrNoRows:
 		Sys("ExpiredRecordsNotFound", "Cache")
@@ -176,6 +135,8 @@ func (cache *Cache) checkCache() {
 	default:
 		for rows.Next() {
 			rows.Scan(&cid, &expires)
+			Sys("CheckingEntry::"+cid, "Cache")
+			Sys("ExpireTime::"+strconv.FormatInt(expires.Int64, 10)+"::TimeNow::"+strconv.FormatInt(time.Now().Unix(), 10), "Cache")
 			if expires.Valid && expires.Int64 < time.Now().Unix() {
 				Sys("RemovingExpired::"+cid, "Cache")
 				_, err := cache.db.sql.Exec(`DELETE FROM cache WHERE cid = ?`, cid)
@@ -184,5 +145,6 @@ func (cache *Cache) checkCache() {
 				}
 			}
 		}
+		cache.db.ResetIncrement("cache")
 	}
 }

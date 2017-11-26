@@ -17,6 +17,7 @@ type Cron struct {
 	jobs         map[int]func()
 	interval     time.Duration
 	intervalChan chan time.Duration
+	intervalSet  chan time.Duration
 	cronCount    int
 }
 
@@ -26,23 +27,36 @@ func InitCron() {
 	cron.cronCount = 0
 	cron.jobs = make(map[int]func())
 	cron.intervalChan = make(chan time.Duration)
+	cron.intervalSet = make(chan time.Duration)
 	cron.interval = time.Duration(10) * time.Second
 	cron.startInterval()
 	CronHandler = &cron
 }
 
 func (cron *Cron) startInterval() {
+	chanIntervalReset := make(chan bool)
 	go func() {
 		for {
 			time.Sleep(<-cron.intervalChan)
 			cron.Push()
+			chanIntervalReset <- true
 		}
 	}()
 	go func() {
+		interval := <-cron.intervalSet
+		cron.intervalChan <- interval
 		for {
-			cron.intervalChan <- cron.interval
+			select {
+			case <-chanIntervalReset:
+				cron.intervalChan <- interval
+			case newInterval := <-cron.intervalSet:
+				interval = newInterval
+			default:
+				time.Sleep(1 * time.Second)
+			}
 		}
 	}()
+	cron.intervalSet <- cron.interval
 }
 
 // Add cron job
@@ -58,7 +72,7 @@ func (cron *Cron) Push() {
 
 // Interval changes the time in between Cron activation
 func (cron *Cron) Interval(interval int) {
-	cron.interval = time.Duration(interval) * time.Second
+	cron.intervalSet <- time.Duration(interval) * time.Second
 }
 
 // BatchWork will run all jobs located in an array of functions

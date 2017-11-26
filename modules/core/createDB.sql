@@ -3,12 +3,11 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Nov 15, 2017 at 01:06 AM
+-- Generation Time: Nov 24, 2017 at 07:49 PM
 -- Server version: 5.7.20-0ubuntu0.17.04.1
 -- PHP Version: 7.0.22-0ubuntu0.17.04.1
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
-SET time_zone = "+00:00";
 
 --
 -- Database: `saviour`
@@ -22,7 +21,6 @@ USE `saviour`;
 -- Table structure for table `cache`
 --
 
-DROP TABLE IF EXISTS `cache`;
 CREATE TABLE `cache` (
   `cid` varchar(255) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL COMMENT 'Primary Search Key For Cache',
   `data` longblob NOT NULL COMMENT 'Binary Data For Cache',
@@ -36,7 +34,6 @@ CREATE TABLE `cache` (
 -- Table structure for table `logger`
 --
 
-DROP TABLE IF EXISTS `logger`;
 CREATE TABLE `logger` (
   `lid` int(11) NOT NULL COMMENT 'Log Primary Key',
   `type` varchar(6) NOT NULL COMMENT 'Log Type: Status, Warn, Error, Fatal',
@@ -51,7 +48,6 @@ CREATE TABLE `logger` (
 -- Table structure for table `login_token`
 --
 
-DROP TABLE IF EXISTS `login_token`;
 CREATE TABLE `login_token` (
   `uid` int(11) NOT NULL,
   `tid` int(11) NOT NULL,
@@ -65,7 +61,6 @@ CREATE TABLE `login_token` (
 -- Table structure for table `role`
 --
 
-DROP TABLE IF EXISTS `role`;
 CREATE TABLE `role` (
   `rid` int(11) NOT NULL,
   `name` varchar(64) DEFAULT NULL,
@@ -78,7 +73,6 @@ CREATE TABLE `role` (
 -- Table structure for table `sessions`
 --
 
-DROP TABLE IF EXISTS `sessions`;
 CREATE TABLE `sessions` (
   `uid` int(11) NOT NULL,
   `sid` int(11) NOT NULL,
@@ -95,7 +89,6 @@ CREATE TABLE `sessions` (
 -- Table structure for table `users`
 --
 
-DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
   `uid` int(11) NOT NULL,
   `name` varchar(45) DEFAULT NULL,
@@ -115,9 +108,8 @@ CREATE TABLE `users` (
 -- Dumping data for table `users`
 --
 
-INSERT INTO `users` (`uid`, `name`, `pass`, `mail`, `signature`, `created`, `access`, `login`,
-  `status`, `timezone`, `language`, `picture`)VALUES(1, 'Admin', 'Password', 'admin@diycardsecurity.com',
-     NULL, '2017-11-10 00:12:23', NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO `users` (`uid`, `name`, `pass`, `mail`, `signature`, `created`, `access`, `login`, `status`, `timezone`, `language`, `picture`) VALUES
+(1, 'Admin', 'Password', 'ian@diysecurity.com', NULL, '2017-11-09 17:12:23', NULL, NULL, NULL, NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -125,7 +117,6 @@ INSERT INTO `users` (`uid`, `name`, `pass`, `mail`, `signature`, `created`, `acc
 -- Table structure for table `user_roles`
 --
 
-DROP TABLE IF EXISTS `user_roles`;
 CREATE TABLE `user_roles` (
   `uid` int(11) NOT NULL,
   `rid` int(11) NOT NULL
@@ -154,7 +145,7 @@ ALTER TABLE `logger`
 --
 ALTER TABLE `login_token`
   ADD PRIMARY KEY (`tid`),
-  ADD KEY `uid` (`uid`);
+  ADD UNIQUE KEY `uid` (`uid`) USING BTREE;
 
 --
 -- Indexes for table `role`
@@ -173,7 +164,8 @@ ALTER TABLE `sessions`
 -- Indexes for table `users`
 --
 ALTER TABLE `users`
-  ADD PRIMARY KEY (`uid`);
+  ADD PRIMARY KEY (`uid`),
+  ADD UNIQUE KEY `name` (`name`);
 
 --
 -- Indexes for table `user_roles`
@@ -181,6 +173,10 @@ ALTER TABLE `users`
 ALTER TABLE `user_roles`
   ADD PRIMARY KEY (`rid`) USING BTREE,
   ADD KEY `uid` (`uid`) USING BTREE;
+
+--
+-- AUTO_INCREMENT for dumped tables
+--
 
 --
 -- AUTO_INCREMENT for table `logger`
