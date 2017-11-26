@@ -4,7 +4,6 @@ package core
 // interval. It employs two go routines a controller/worker
 
 import (
-	"fmt"
 	"strconv"
 	"time"
 )
@@ -28,7 +27,8 @@ func InitCron() {
 	cron.jobs = make(map[int]func())
 	cron.intervalChan = make(chan time.Duration)
 	cron.intervalSet = make(chan time.Duration)
-	cron.interval = time.Duration(10) * time.Second
+	options := OptionsHandler.GetOptions("Core")
+	cron.interval = time.Duration(int(options["Interval"].(float64))) * time.Minute
 	cron.startInterval()
 	CronHandler = &cron
 }
@@ -38,6 +38,7 @@ func (cron *Cron) startInterval() {
 	go func() {
 		for {
 			time.Sleep(<-cron.intervalChan)
+			Sys("CronStarting", "Cron")
 			cron.Push()
 			chanIntervalReset <- true
 		}
@@ -77,7 +78,7 @@ func (cron *Cron) Interval(interval int) {
 
 // BatchWork will run all jobs located in an array of functions
 func BatchWork(jobs map[int]func()) {
-	fmt.Println("Batch_Jobs_Recieved::" + strconv.Itoa(len(jobs)))
+	Sys("Batch_Jobs_Recieved::"+strconv.Itoa(len(jobs)), "Cron")
 	for _, job := range jobs {
 		Work(job)
 	}
@@ -87,9 +88,10 @@ func BatchWork(jobs map[int]func()) {
 func Work(job func()) {
 	go func() {
 		done := make(chan bool)
+		Sys("Job::Starting", "Cron")
 		go Run(done, job)
 		<-done
-		fmt.Println("Job::Done")
+		Sys("Job::Done", "Cron")
 	}()
 }
 

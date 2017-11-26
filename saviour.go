@@ -15,7 +15,10 @@ func main() {
 	core.InitDebug(*debugOn)
 	core.Sys("DebugEnabled", "")
 	core.Sys("Starting", "")
+	core.InitOptions()
 	core.InitCron()
-	db := core.InitDatabase()
-	core.InitSystem(db)
+	core.InitDatabase()
+	core.InitLogger()
+	core.InitCache()
+	core.InitSystem()
 }

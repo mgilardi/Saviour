@@ -20,15 +20,15 @@ type User struct {
 // CheckUserLogin inputs username and password and checks if it matches
 // the database returns a boolean if the user if found along with the
 // users database uid
-func InitUser(db *Database, name string, pass string) (bool, *User) {
+func InitUser(name string, pass string) (bool, *User) {
 	var dbPass string
 	var uid int
 	var verified = false
 	var user User
 	user.online = false
-	user.db = db
+	user.db = DBHandler
 	Sys("CheckUserLogin::"+name, "User")
-	err := db.sql.QueryRow(`SELECT pass, uid FROM users WHERE name = ?`, name).Scan(&dbPass, &uid)
+	err := user.db.sql.QueryRow(`SELECT pass, uid FROM users WHERE name = ?`, name).Scan(&dbPass, &uid)
 	switch {
 	case err == sql.ErrNoRows:
 		Sys("UserNotFound", "User")
@@ -37,8 +37,8 @@ func InitUser(db *Database, name string, pass string) (bool, *User) {
 	case dbPass == pass:
 		Sys("LoginVerified::"+name, "User")
 		user.name = name
+		user.uid = uid
 		user.CheckTokenExists()
-		user.GetCache()
 		verified = true
 	default:
 		Warn(errors.New("InvalidPassword::"+name), "User")
@@ -49,13 +49,19 @@ func InitUser(db *Database, name string, pass string) (bool, *User) {
 // CheckTokenExists checks to see if a token exists in the database if not
 // it generates one.
 func (user *User) CheckTokenExists() {
-	exists, token := user.CheckToken(user.uid)
+	exists, _ := user.CheckToken(user.uid)
 	if !exists {
-		user.token = GenToken(32)
-		user.StoreToken(user.uid, user.token)
-	} else {
-		user.token = token
+		newToken := GenToken(32)
+		user.StoreToken(user.uid, newToken)
 	}
+}
+
+// VerifyToken verify the user token
+func (user *User) VerifyToken(token string) bool {
+	if token == user.GetToken() {
+		return true
+	}
+	return false
 }
 
 // GetName returns username
@@ -63,15 +69,16 @@ func (user *User) GetName() string {
 	return user.name
 }
 
-// GetToken returns user token
-func (user *User) GetToken() string {
-	return user.token
+// GetEmail returns email from cache
+func (user *User) GetEmail() string {
+	cacheMap := user.GetCache()
+	return cacheMap["email"].(string)
 }
 
-// SetToken generates a new token and writes it to DB
-func (user *User) SetToken() {
-	user.token = GenToken(32)
-	user.StoreToken(user.uid, user.token)
+// GetToken returns user token
+func (user *User) GetToken() string {
+	cacheMap := user.GetCache()
+	return cacheMap["token"].(string)
 }
 
 // IsOnline returns the online flag for the user
@@ -88,13 +95,12 @@ func (user *User) SetOnline(isOnline bool) {
 func (user *User) CheckToken(uid int) (bool, string) {
 	var token string
 	exists := false
-	Sys("CheckingToken", "User")
 	err := user.db.sql.QueryRow(`SELECT token FROM login_token WHERE uid = ?`, uid).Scan(&token)
 	switch {
 	case err == sql.ErrNoRows:
 		Sys("TokenNotFound", "User")
 	case err != nil:
-		Error(err, "System")
+		Error(err, "User")
 	default:
 		Sys("TokenFound", "User")
 		exists = true
@@ -104,22 +110,26 @@ func (user *User) CheckToken(uid int) (bool, string) {
 
 // StoreToken writes user token to the database
 func (user *User) StoreToken(uid int, token string) {
-	Sys("StoreToken", "User")
+	Sys("StoreNewToken", "User")
 	_, err := user.db.sql.Exec(`INSERT INTO login_token(uid, token) VALUES (?, ?)`+
 		`ON DUPLICATE KEY UPDATE token = ?`, uid, token, token)
 	if err != nil {
-		Error(err, "System")
+		Error(err, "User")
 	}
 }
 
 // GetCache requests user info from cache
-func (user *User) GetCache() {
-	exists, userCache := CacheHandler.GetCache(user)
-	if exists {
-		user.uid = userCache["uid"].(int)
-		user.email = userCache["email"].(string)
-		user.token = userCache["token"].(string)
+func (user *User) GetCache() map[string]interface{} {
+	exists, userCache := CacheHandler.Cache(user)
+	if !exists {
+		Error(errors.New("FailedToLoadCache"), "User")
 	}
+	return userCache
+}
+
+// UpdateCache updates user cache entrys
+func (user *User) UpdateCache() {
+	CacheHandler.Update(user)
 }
 
 // Cache is called to load user information into the cache
@@ -129,6 +139,11 @@ func (user *User) Cache() (string, map[string]interface{}) {
 	return cid, cacheMap
 }
 
+// CacheID returns the cache id for this user
+func (user *User) CacheID() string {
+	return user.GetName() + ":" + strconv.Itoa(user.uid) + ":UserData"
+}
+
 // loadCacheValues loads the user information from the database and places
 // them in a map for loading into the cache
 func (user *User) loadCacheValues() map[string]interface{} {
@@ -136,7 +151,6 @@ func (user *User) loadCacheValues() map[string]interface{} {
 	var name, email, token string
 	cacheMap := make(map[string]interface{})
 	user.db.sql.QueryRow(`SELECT users.uid, name, mail, token FROM users JOIN login_token WHERE users.uid = login_token.uid & users.uid = ?`, user.uid).Scan(&uid, &name, &email, &token)
-	Sys("GetUserVal::"+strconv.Itoa(uid)+":"+name+":"+email+":"+token, "User")
 	cacheMap["uid"] = uid
 	cacheMap["name"] = name
 	cacheMap["email"] = email
@@ -149,7 +163,7 @@ func GenToken(length int) string {
 	byte := make([]byte, length)
 	_, err := rand.Read(byte)
 	if err != nil {
-		Error(err, "System")
+		Error(err, "User")
 	}
 	return base64.URLEncoding.EncodeToString(byte)
 }
@@ -163,7 +177,7 @@ func GetUserID(db *Database, name string) (int, error) {
 	case err == sql.ErrNoRows:
 		Sys("UserNotFound", "User")
 	case err != nil:
-		Error(err, "System")
+		Error(err, "User")
 	}
 	return uid, err
 }
@@ -178,7 +192,7 @@ func CheckUserExists(db *Database, name string) bool {
 	case err == sql.ErrNoRows:
 		Sys("UserNotFound", "User")
 	case err != nil:
-		Error(err, "System")
+		Error(err, "User")
 	default:
 		exists = true
 	}

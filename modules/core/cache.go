@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/gob"
+	"errors"
 	"strconv"
 	"time"
 )
@@ -14,6 +15,7 @@ var CacheHandler *Cache
 // CacheObj interface for any struct containing the Cache method
 type CacheObj interface {
 	Cache() (string, map[string]interface{})
+	CacheID() string
 }
 
 // CacheData binary encoding struct for the cache map
@@ -23,20 +25,89 @@ type CacheData struct {
 
 // Cache struct holds the
 type Cache struct {
-	expireTime time.Duration
-	db         *Database
+	dbExpireTime  time.Duration
+	memExpireTime time.Duration
+	db            *Database
+	memCache      map[string]map[string]interface{}
 }
 
 // InitCache sets up the CacheHandler global variable
-func InitCache(db *Database) {
+func InitCache() {
 	var cache Cache
-	cache.db = db
-	options := GetOptions("core")
-	cache.expireTime = time.Duration(int(options["ExpireTime"].(float64)))
+	cache.db = DBHandler
+	cache.memCache = make(map[string]map[string]interface{})
+	options := OptionsHandler.GetOptions("core")
+	cache.dbExpireTime = time.Duration(int(options["DBExpireTime"].(float64))) * time.Minute
+	cache.memExpireTime = time.Duration(int(options["MemExpireTime"].(float64))) * time.Minute
 	CacheHandler = &cache
+	OptionsHandler.CacheLoaded()
 	CronHandler.Add(func() {
 		CacheHandler.CheckCache()
+		CacheHandler.CheckMemCache()
 	})
+}
+
+// Cache is the function that is called to load the cache
+func (cache *Cache) Cache(obj CacheObj) (bool, map[string]interface{}) {
+	var exists bool
+	var cacheMap map[string]interface{}
+	Sys("CheckingMemCache", "Cache")
+	exists, cacheMap = cache.GetMemCache(obj)
+	if exists {
+		Sys("ReceivedMemCache", "Cache")
+		return exists, cacheMap
+	}
+	Sys("CheckingDBCache", "Cache")
+	exists, cacheMap = cache.GetCache(obj)
+	if !exists {
+		Error(errors.New("CouldNotLoadCacheMap"), "Cache")
+	}
+	Sys("DBCacheFound", "Cache")
+	return exists, cacheMap
+}
+
+// Update will update the cache objects
+func (cache *Cache) Update(obj CacheObj) {
+	cache.SetCache(obj)
+	cache.SetMemCache(obj)
+}
+
+// GetMemCache checks for memory cache and returns value if exists if not
+// it will load a new entry into the memory cache
+func (cache *Cache) GetMemCache(obj CacheObj) (bool, map[string]interface{}) {
+	value, exists := cache.memCache[obj.CacheID()]
+	if !exists {
+		Sys("CacheMemEntryNotFound::Creating", "Cache")
+		cache.SetMemCache(obj)
+	} else {
+		Sys("MemoryCacheEntryExists", "Cache")
+		if time.Now().Unix() > value["expires"].(int64) {
+			exists = false
+			Sys("CacheMemEntryExpired::Creating", "Cache")
+			cache.SetMemCache(obj)
+		}
+	}
+	return exists, value
+}
+
+// SetMemCache adds a new entry into the memory cache
+func (cache *Cache) SetMemCache(obj CacheObj) {
+	cid, cacheMap := obj.Cache()
+	cacheMap["expires"] = time.Now().Add(cache.memExpireTime).Unix()
+	cache.memCache[cid] = cacheMap
+
+}
+
+// CheckMemCache removes expired entrys from the memory cache
+func (cache *Cache) CheckMemCache() {
+	Sys("CheckMemCacheForExpired", "Cache")
+	for key, value := range cache.memCache {
+		Sys("MemCacheEntry::"+key+"::Expires::"+strconv.FormatInt(value["expires"].(int64), 10)+"::TimeNow::"+strconv.FormatInt(time.Now().Unix(), 10), "Cache")
+		if time.Now().Unix() > value["expires"].(int64) {
+			Sys("RemovingExpired::"+key, "Cache")
+			delete(cache.memCache, key)
+		}
+	}
 }
 
 // GetCache will return the cache map if the map is not in the cache it will
@@ -49,13 +120,14 @@ func (cache *Cache) GetCache(obj CacheObj) (bool, map[string]interface{}) {
 	var buf bytes.Buffer
 	var cid string
 	var err error
+
 	exists = false
-	cid, _ = obj.Cache()
+	cid = obj.CacheID()
 	err = cache.db.sql.QueryRow(`SELECT data, expires FROM cache WHERE cid = ?`, cid).Scan(&dbData, &expires)
 	switch {
 	case err == sql.ErrNoRows:
 		// Cache Row Not found
-		Sys("CacheEntryNotFound::Creating", "Cache")
+		Sys("CacheDBEntryNotFound::Creating", "Cache")
 		cache.SetCache(obj)
 		cache.db.sql.QueryRow(`SELECT data, expires FROM cache WHERE cid = ?`, cid).Scan(&dbData, &expires)
 		exists = true
@@ -65,6 +137,7 @@ func (cache *Cache) GetCache(obj CacheObj) (bool, map[string]interface{}) {
 		if !(expires.Int64 < time.Now().Unix()) {
 			exists = true
 		} else {
+			Sys("CacheDBEntryExpired::Creating", "Cache")
 			cache.SetCache(obj)
 			cache.db.sql.QueryRow(`SELECT data, expires FROM cache WHERE cid = ?`, cid).Scan(&dbData, &expires)
 			exists = true
@@ -102,7 +175,7 @@ func (cache *Cache) SetCache(obj CacheObj) {
 	if err != nil {
 		Error(err, "Cache")
 	}
-	expTime = time.Unix(0, time.Now().Add(time.Duration(cache.expireTime*time.Minute)).UnixNano()).Unix()
+	expTime = time.Now().Add(cache.dbExpireTime).Unix()
 	Sys("WritingCache::"+cid+":"+strconv.FormatInt(expTime, 10), "Cache")
 	_, err = cache.db.sql.Exec(`INSERT INTO cache (cid, data, expires) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE data = ?, expires = ?`, cid, buf.Bytes(), expTime, buf.Bytes(), expTime)
 	if err != nil {
@@ -126,17 +199,16 @@ func (cache *Cache) CheckCache() {
 	var cid string
 	var expires sql.NullInt64
 	rows, err := cache.db.sql.Query(`SELECT cid, expires FROM cache`)
-	Sys("CheckingForExpiredEntrys", "Cache")
+	Sys("CheckDBCacheForExpired", "Cache")
 	switch {
 	case err == sql.ErrNoRows:
-		Sys("ExpiredRecordsNotFound", "Cache")
+		Sys("CacheTableEmpty", "Cache")
 	case err != nil && err.Error() != "EOF":
 		Error(err, "Cache")
 	default:
 		for rows.Next() {
 			rows.Scan(&cid, &expires)
-			Sys("CheckingEntry::"+cid, "Cache")
-			Sys("ExpireTime::"+strconv.FormatInt(expires.Int64, 10)+"::TimeNow::"+strconv.FormatInt(time.Now().Unix(), 10), "Cache")
+			Sys("DBCacheEntry::"+cid+"::Expires::"+strconv.FormatInt(expires.Int64, 10)+"::TimeNow::"+strconv.FormatInt(time.Now().Unix(), 10), "Cache")
 			if expires.Valid && expires.Int64 < time.Now().Unix() {
 				Sys("RemovingExpired::"+cid, "Cache")
 				_, err := cache.db.sql.Exec(`DELETE FROM cache WHERE cid = ?`, cid)

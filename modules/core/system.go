@@ -3,55 +3,12 @@ package core
 import (
 	//"config"
 
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 
 	"github.com/gorilla/mux"
 )
-
-// DataPacket is the struct that json files are loaded into when marshaled
-type DataPacket struct {
-	Login struct {
-		User  string `json:"user,omitempty" validate:"max=45,alphanum|len=0"`
-		Pass  string `json:"pass,omitempty" validate:"max=45,alphanum|len=0"`
-		Email string `json:"email,omitempty" validate:"max=45,email|len=0"`
-	} `json:"login"`
-	Saviour struct {
-		Username string `json:"username,omitempty" validate:"max=45,alphanum|len=0"`
-		Status   int    `json:"status,omitempty" validate:"len=3|len=0"`
-		Token    string `json:"token,omitempty" validate:"max=45,base64|len=0"`
-		Message  string `json:"message,omitempty" validate:"max=45,base64|len=0"`
-	} `json:"saviour"`
-}
-
-// genDataPacket generates a packet for transaction
-func genDataPacket(token string, message string, status int, username string) []byte {
-	var packet DataPacket
-	var buf []byte
-	// Testing
-	packet = sanitizePacket(packet)
-	packet.Saviour.Token = token
-	packet.Saviour.Message = message
-	packet.Saviour.Status = status
-	packet.Saviour.Username = username
-	buf, err := json.Marshal(&packet)
-	if err != nil {
-		Error(err, "System")
-	}
-	return buf
-}
-
-// loadDataPacket loads incoming packet for analysis
-func loadDataPacket(buf []byte) DataPacket {
-	var packet DataPacket
-	err := json.Unmarshal(buf, &packet)
-	if err != nil {
-		Error(err, "System")
-	}
-	return sanitizePacket(packet)
-}
 
 // System contains server responses to http requests
 type System struct {
@@ -62,20 +19,14 @@ type System struct {
 }
 
 // InitSystem initialize system
-func InitSystem(datab *Database) {
+func InitSystem() {
 	var sys System
 	sys.conUsers = make(map[string]*User)
-	sys.db = datab
-	sys.cache = CacheHandler
+	sys.db = DBHandler
 	Sys("Starting", "System")
-	options := GetOptions("core")
+	options := OptionsHandler.GetOptions("core")
 	sys.hostname = options["Hostname"].(string)
 	sys.port = options["Port"].(string)
-	Sys("LoadedConfigFromCache::"+options["Name"].(string), "System")
-	sys.startServ()
-}
-
-func (sys *System) startServ() {
 	sys.handleRequest()
 }
 
@@ -84,6 +35,7 @@ func (sys *System) startServ() {
 func (sys *System) handleRequest() {
 	servRouter := mux.NewRouter()
 	servRouter.HandleFunc("/", sys.indexPage)
+	servRouter.HandleFunc("/logoff", sys.logoffRequest).Methods("POST")
 	servRouter.HandleFunc("/login", sys.loginRequest).Methods("POST")
 	Error(http.ListenAndServe(sys.hostname+":"+sys.port, servRouter), "System")
 }
@@ -94,14 +46,39 @@ func (sys *System) indexPage(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("ReceivedRequest")
 }
 
+func (sys *System) logoffRequest(w http.ResponseWriter, r *http.Request) {
+	var packet DataPacket
+	var buf []byte
+	status := 400
+	buf, _ = ioutil.ReadAll(r.Body)
+	packet = loadDataPacket(buf)
+	currentUser, exists := sys.conUsers[packet.Saviour.Username]
+	if !exists {
+		Sys("UserNotConnectedLogoff::"+packet.Saviour.Username, "System")
+		buf = genDataPacket("", "UserNotConnected", status, packet.Saviour.Username)
+	} else {
+		if !currentUser.VerifyToken(packet.Saviour.Token) {
+			Sys("InvalidTokenLogoff::"+currentUser.GetName(), "System")
+			buf = genDataPacket("", "InvalidToken", status, packet.Saviour.Username)
+		} else {
+			status = 200
+			Sys("LogoffSuccsessful::"+currentUser.GetName(), "System")
+			buf = genDataPacket(currentUser.GetToken(), "LogOff::Sucsessful", status, currentUser.GetName())
+			delete(sys.conUsers, currentUser.GetName())
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	w.Write(buf)
+}
+
 // createRequest handles user creation/registration
 func (sys *System) createRequest(w http.ResponseWriter, r *http.Request) {
 	var packet DataPacket
 	var buf []byte
 	buf, _ = ioutil.ReadAll(r.Body)
 	packet = loadDataPacket(buf)
-	loginParam := [3]string{packet.Login.User, packet.Login.Pass, packet.Login.Email}
-	Sys("CreatingUser::"+loginParam[0], "System")
+	Sys("CreatingUser::"+packet.Login.User, "System")
 }
 
 // loginRequest handles initial login, if user is not found or password is incorrect it will return a UserNotFound
@@ -116,7 +93,7 @@ func (sys *System) loginRequest(w http.ResponseWriter, r *http.Request) {
 	buf, _ = ioutil.ReadAll(r.Body)
 	packet = loadDataPacket(buf)
 	Sys("LoginAttempt::"+packet.Login.User, "System")
-	userFound, currentUser := InitUser(sys.db, packet.Login.User, packet.Login.Pass)
+	userFound, currentUser := InitUser(packet.Login.User, packet.Login.Pass)
 	if userFound == true {
 		_, exists = sys.conUsers[packet.Login.User]
 		if exists && sys.conUsers[currentUser.GetName()].IsOnline() {

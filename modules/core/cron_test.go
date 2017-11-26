@@ -6,8 +6,6 @@ import (
 )
 
 func TestCron_InitCron(t *testing.T) {
-	InitDebug(true)
-	InitCron()
 	CronHandler.Add(func() {
 		Sys("Test", "Test")
 	})

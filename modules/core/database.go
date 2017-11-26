@@ -9,31 +9,33 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
+// DBHandler Database Global Variable
+var DBHandler *Database
+
 // Database tyoe contains the sql access, options, logger, and the dsn for sql login
 type Database struct {
-	sql     *sql.DB
-	options map[string]interface{}
-	dsn     string
+	sql *sql.DB
+	dsn string
 }
 
 // InitDatabase initialize the database object and passes a pointer to the main loop
-func InitDatabase() *Database {
+func InitDatabase() {
 	var db Database
 	var err error
 	var user, pass string
 	Sys("Starting", "DB")
-	db.options = GetOptions("Core")
+	options := OptionsHandler.GetOptions("Core")
 	if err != nil {
 		Error(err, "DB")
 	}
-	if db.options["User"] == nil {
+	if options["User"] == nil {
 		Error(err, "Cache")
 	}
-	if db.options["Pass"] == nil {
+	if options["Pass"] == nil {
 		Error(err, "Cache")
 	}
-	user = db.options["User"].(string)
-	pass = db.options["Pass"].(string)
+	user = options["User"].(string)
+	pass = options["Pass"].(string)
 	db.dsn = user + ":" + pass + "@/saviour"
 	Sys("DSNLoaded", "DB")
 	// Open Database
@@ -45,14 +47,13 @@ func InitDatabase() *Database {
 	if err != nil {
 		Error(err, "Cache")
 	}
-	InitLogger(&db)
-	InitCache(&db)
-	db.CheckDB()
-	return &db
+
+	db.checkDB()
+	DBHandler = &db
 }
 
 // CheckDB checks if database exists and outputs tables that are found.
-func (db *Database) CheckDB() {
+func (db *Database) checkDB() {
 	tables := make([]string, 0)
 	rows, err := db.sql.Query(`SHOW TABLES`)
 	if err != nil {

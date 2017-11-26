@@ -2,7 +2,7 @@
   "__comment": "Module Name",
 	"Name": "Core",
   "__comment": "Cron Interval",
-  "Interval": 10,
+  "Interval": 3,
   "__comment": "Server Hostname",
   "Hostname": "localhost",
   "__comment": "Server Port",
@@ -11,5 +11,6 @@
   "User": "saviour",
   "Pass": "Wlzv1iwFSV0W6cL4",
   "__comment": "Cache Entry Expire Time",
-  "ExpireTime": 5
+  "DBExpireTime": 15,
+  "MemExpireTime": 5
 }

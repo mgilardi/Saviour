@@ -6,20 +6,13 @@ import (
 )
 
 func TestGetOptions(t *testing.T) {
-	options := GetOptions("Core")
-	if options["Name"].(string) == "Core" {
+	InitOptions()
+	options := OptionsHandler.GetOptions("Core")
+	_, exists := options["Name"]
+	if exists && options["Name"].(string) == "Core" {
 		fmt.Println("Testing::" + options["Name"].(string))
 	} else {
 		t.Errorf("CouldNotLoadModule")
-	}
-}
-
-func TestGetAllOptions(t *testing.T) {
-	optionsArray := GetAllOptions()
-	for _, opt := range optionsArray {
-		if opt["Name"].(string) == "" {
-			t.Errorf("CouldNotLoadModule")
-		}
 	}
 }
 

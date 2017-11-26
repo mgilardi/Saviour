@@ -6,14 +6,100 @@ package core
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"os"
 	"strings"
 )
 
+// OptionsHandler global variable for options struct
+var OptionsHandler *Options
+
+// Option Struct
+type Option struct {
+	name string
+}
+
+// Create a new option object
+func initOption(name string) *Option {
+	var option Option
+	option.name = name
+	return &option
+}
+
+// GetValues for the option object from cache
+func (opt *Option) GetValues() map[string]interface{} {
+	exists, cacheMap := CacheHandler.Cache(opt)
+	if !exists {
+		Error(errors.New("CouldNotLoadCacheOptions::"+opt.name), "Config")
+	}
+	return cacheMap
+}
+
+// UpdateCache updates the cache entry for this option object
+func (opt *Option) UpdateCache() {
+	CacheHandler.Update(opt)
+}
+
+// Cache This function is triggered by the cache module
+func (opt *Option) Cache() (string, map[string]interface{}) {
+	cacheID := opt.name + ":option"
+	values := opt.loadValues()
+	return cacheID, values
+}
+
+// This loads the values for the options object from disk
+func (opt *Option) loadValues() map[string]interface{} {
+	options := getOptions(opt.name)
+	return options
+}
+
+// CacheID This is a helper function for the cache module
+func (opt *Option) CacheID() string {
+	cacheID := opt.name + ":option"
+	return cacheID
+}
+
+// Options struct
+type Options struct {
+	options     map[string]*Option
+	cacheLoaded bool
+}
+
+// InitOptions initializes the options struct
+func InitOptions() {
+	var opt Options
+	opt.cacheLoaded = false
+	opt.options = make(map[string]*Option)
+	dir, err := ioutil.ReadDir(os.Getenv("GOPATH") + "/src/Saviour/modules")
+	if err != nil {
+		Error(err, "Config")
+	}
+	for _, file := range dir {
+		Sys("LoadingOptionsFile::"+file.Name(), "Config")
+		newOption := initOption(file.Name())
+		opt.options[file.Name()] = newOption
+	}
+	OptionsHandler = &opt
+}
+
+// GetOptions will return the options map
+func (opts *Options) GetOptions(module string) map[string]interface{} {
+	if opts.cacheLoaded == false {
+		return getOptions(module)
+	}
+	return opts.options[module].GetValues()
+}
+
+// CacheLoaded is the switch from loading from disk to loading from cache
+func (opts *Options) CacheLoaded() {
+	opts.cacheLoaded = true
+}
+
 // GetOptions returns an map with the loaded options from the json settings file
-func GetOptions(module string) map[string]interface{} {
-	optionsMap := make(map[string]interface{})
+func getOptions(module string) map[string]interface{} {
+	var optionsMap map[string]interface{}
+	optionsMap = make(map[string]interface{})
 	optionsMap["Path"] = os.Getenv("GOPATH") + "/src/Saviour/modules/" +
 		strings.ToLower(module) + "/settings.json"
 	raw, err := ioutil.ReadFile(optionsMap["Path"].(string))
@@ -27,25 +113,10 @@ func GetOptions(module string) map[string]interface{} {
 	return optionsMap
 }
 
-// GetAllOptions returns a array of maps with the loaded settings.json files for each module
-func GetAllOptions() []map[string]interface{} {
-	var optionArray []map[string]interface{}
-	var currentModule map[string]interface{}
-	dir, err := ioutil.ReadDir(os.Getenv("GOPATH") + "/src/Saviour/modules/")
-	if err != nil {
-		Error(err, "Config")
-	}
-	for _, file := range dir {
-		currentModule = GetOptions(file.Name())
-		optionArray = append(optionArray, currentModule)
-	}
-	return optionArray
-}
-
 // FindValue returns a value of a module
 func FindValue(module string, key string) interface{} {
 	var output interface{}
-	optionsMap := GetOptions(module)
+	optionsMap := getOptions(module)
 	output = optionsMap[key]
 	return output
 }

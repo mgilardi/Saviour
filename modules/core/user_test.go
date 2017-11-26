@@ -9,7 +9,7 @@ var ThisUser *User
 
 func TestUser_CheckUserLogin(t *testing.T) {
 	var exists bool
-	exists, ThisUser = InitUser(InitDatabase(), "Admin", "Password")
+	exists, ThisUser = InitUser("Admin", "Password")
 	if exists {
 		// Pass
 		Sys("Loading::"+ThisUser.GetName(), "Test")

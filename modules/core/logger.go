@@ -103,11 +103,11 @@ type logger struct {
 }
 
 // InitLogger constructs logger type
-func InitLogger(loadDB *Database) {
+func InitLogger() {
 	var newLogDB logger
 	newLogDB.isOn = true
 	newLogDB.logLevel = 2
-	newLogDB.db = loadDB
+	newLogDB.db = DBHandler
 	logHandler = append(logHandler, &newLogDB)
 }
 
