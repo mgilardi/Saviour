@@ -38,19 +38,21 @@ func genDataPacket(token string, message string, status int, username string) []
 	packet.Saviour.Username = username
 	buf, err := json.Marshal(&packet)
 	if err != nil {
-		Error(err, "System")
+		Error(err, "Packet")
 	}
 	return buf
 }
 
 // loadDataPacket loads incoming packet for analysis
-func loadDataPacket(buf []byte) DataPacket {
+func loadDataPacket(buf []byte) (bool, DataPacket) {
 	var packet DataPacket
+	valid := true
 	err := json.Unmarshal(buf, &packet)
 	if err != nil {
-		Error(err, "System")
+		Error(err, "Packet")
+		valid = false
 	}
-	return sanitizePacket(packet)
+	return valid, sanitizePacket(packet)
 }
 
 // sanitizePacket validates regular data packet if fail sanitize

@@ -51,12 +51,12 @@ func InitCache() {
 func (cache *Cache) Cache(obj CacheObj) (bool, map[string]interface{}) {
 	var exists bool
 	var cacheMap map[string]interface{}
-	Sys("CheckingMemCache", "Cache")
-	exists, cacheMap = cache.GetMemCache(obj)
-	if exists {
-		Sys("ReceivedMemCache", "Cache")
-		return exists, cacheMap
-	}
+	//Sys("CheckingMemCache", "Cache")
+	//exists, cacheMap = cache.GetMemCache(obj)
+	//if exists {
+	//	Sys("ReceivedMemCache", "Cache")
+	//	return exists, cacheMap
+	//}
 	Sys("CheckingDBCache", "Cache")
 	exists, cacheMap = cache.GetCache(obj)
 	if !exists {
@@ -68,8 +68,8 @@ func (cache *Cache) Cache(obj CacheObj) (bool, map[string]interface{}) {
 
 // Update will update the cache objects
 func (cache *Cache) Update(obj CacheObj) {
-	cache.SetCache(obj)
-	cache.SetMemCache(obj)
+	cache.DeleteMemCache(obj)
+	cache.DeleteDBCache(obj)
 }
 
 // GetMemCache checks for memory cache and returns value if exists if not
@@ -107,6 +107,25 @@ func (cache *Cache) CheckMemCache() {
 			Sys("RemovingExpired::"+key, "Cache")
 			delete(cache.memCache, key)
 		}
+	}
+}
+
+// DeleteMemCache deletes cache entrys for refresh
+func (cache *Cache) DeleteMemCache(obj CacheObj) {
+	cid := obj.CacheID()
+	for k := range cache.memCache {
+		if cid == k {
+			delete(cache.memCache, k)
+		}
+	}
+}
+
+// DeleteDBCache deletes cache entrys for refresh
+func (cache *Cache) DeleteDBCache(obj CacheObj) {
+	cid := obj.CacheID()
+	_, err := cache.db.sql.Exec(`DELETE FROM cache WHERE cid = ?`, cid)
+	if err != nil {
+		Error(err, "Cache")
 	}
 }
 

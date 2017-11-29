@@ -175,7 +175,6 @@ func (logger *logger) Enabled() bool {
 
 // WriteLog writes log entry into the database
 func (logger *logger) Write() {
-	Sys("WritingLog::"+logger.logType+"::"+logger.logModule+"::"+logger.logMsg, "Logger")
 	_, err := logger.db.sql.Exec(`INSERT INTO logger (type, module, message) VALUES (?, ?, ?)`,
 		logger.logType, logger.logModule, logger.logMsg)
 	if err != nil {
