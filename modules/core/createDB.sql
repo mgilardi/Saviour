@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Nov 24, 2017 at 07:49 PM
+-- Generation Time: Nov 30, 2017 at 02:18 PM
 -- Server version: 5.7.20-0ubuntu0.17.04.1
 -- PHP Version: 7.0.22-0ubuntu0.17.04.1
 
@@ -25,7 +25,7 @@ CREATE TABLE `cache` (
   `cid` varchar(255) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL COMMENT 'Primary Search Key For Cache',
   `data` longblob NOT NULL COMMENT 'Binary Data For Cache',
   `created` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `expires` int(11) DEFAULT NULL COMMENT 'Unix Time When Expires When NULL never expires'
+  `expires` bigint(11) DEFAULT NULL COMMENT 'Unix Time When Expires When NULL never expires'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='Cache Table takes in converted blob';
 
 -- --------------------------------------------------------
@@ -40,7 +40,7 @@ CREATE TABLE `logger` (
   `module` varchar(20) NOT NULL COMMENT 'Module The Error Originated',
   `message` varchar(255) NOT NULL,
   `timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='Logger Table Holds Saviours Error Logs';
 
 -- --------------------------------------------------------
 
@@ -49,10 +49,11 @@ CREATE TABLE `logger` (
 --
 
 CREATE TABLE `login_token` (
-  `uid` int(11) NOT NULL,
-  `tid` int(11) NOT NULL,
-  `token` varchar(255) NOT NULL,
-  `created` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `uid` int(11) NOT NULL COMMENT 'User ID associated with token',
+  `tid` int(11) NOT NULL COMMENT 'Token ID',
+  `token` varchar(255) NOT NULL COMMENT 'Token',
+  `created` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Token Created Timestamp',
+  `expires` bigint(20) NOT NULL COMMENT 'Token expire time UNIXTIME'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 -- --------------------------------------------------------
@@ -62,10 +63,13 @@ CREATE TABLE `login_token` (
 --
 
 CREATE TABLE `role` (
-  `rid` int(11) NOT NULL,
-  `name` varchar(64) DEFAULT NULL,
-  `weight` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `rid` int(11) NOT NULL COMMENT 'Role ID',
+  `name` varchar(64) DEFAULT NULL COMMENT 'Role Name',
+  `weight` int(11) DEFAULT NULL COMMENT 'Table Weight'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='User Roles are contained in this table';
+
+INSERT INTO role (`rid`, `name`, `weight`) VALUES (1, 'admin', 1);
+INSERT INTO role (`rid`, `name`, `weight`) VALUES (2, 'user', 2);
 
 -- --------------------------------------------------------
 
@@ -74,12 +78,11 @@ CREATE TABLE `role` (
 --
 
 CREATE TABLE `sessions` (
-  `uid` int(11) NOT NULL,
-  `sid` int(11) NOT NULL,
-  `ssid` varchar(128) DEFAULT NULL,
-  `hostname` varchar(128) DEFAULT NULL,
-  `timestamp` int(11) DEFAULT NULL,
-  `cache` varchar(45) DEFAULT NULL,
+  `uid` int(11) NOT NULL COMMENT 'Associated UserID',
+  `sid` int(11) NOT NULL COMMENT 'SessionID',
+  `hostname` varchar(128) DEFAULT NULL COMMENT 'Current Session Hostname',
+  `timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Created Timestamp',
+  `expires` bigint(20) NOT NULL COMMENT 'Session Expire Time UNIXTIME',
   `sesssion` varchar(45) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
@@ -90,26 +93,33 @@ CREATE TABLE `sessions` (
 --
 
 CREATE TABLE `users` (
-  `uid` int(11) NOT NULL,
-  `name` varchar(45) DEFAULT NULL,
-  `pass` varchar(45) DEFAULT NULL,
-  `mail` varchar(45) DEFAULT NULL,
-  `signature` varchar(65) DEFAULT NULL,
-  `created` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `access` varchar(45) DEFAULT NULL,
-  `login` varchar(45) DEFAULT NULL,
-  `status` varchar(45) DEFAULT NULL,
-  `timezone` varchar(45) DEFAULT NULL,
-  `language` varchar(45) DEFAULT NULL,
-  `picture` varchar(45) DEFAULT NULL
+  `uid` int(11) NOT NULL COMMENT 'User ID',
+  `name` varchar(45) NOT NULL COMMENT 'Username',
+  `pass` varchar(255) NOT NULL COMMENT 'Hashed Password',
+  `mail` varchar(45) DEFAULT NULL COMMENT 'Email Address',
+  `created` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Created Timestamp',
+  `status` varchar(45) NOT NULL DEFAULT 'Offline' COMMENT 'Online/Offline Status',
+  `timezone` varchar(45) DEFAULT NULL COMMENT 'User Selected Timezone'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 --
 -- Dumping data for table `users`
 --
 
-INSERT INTO `users` (`uid`, `name`, `pass`, `mail`, `signature`, `created`, `access`, `login`, `status`, `timezone`, `language`, `picture`) VALUES
-(1, 'Admin', 'Password', 'ian@diysecurity.com', NULL, '2017-11-09 17:12:23', NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO `users` (`uid`, `name`, `pass`, `mail`, `created`, `status`, `timezone`) VALUES
+(1, 'Admin', '$2a$14$GzWiSEdfzmjprH5oC6XXqeRIiN/LS3nggWmFSRVHi2eH8Vbgbxqbm', 'ian@diysecurity.com', '2017-11-09 17:12:23', 'Offline', 'Phoenix');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `user_permissions`
+--
+
+CREATE TABLE `user_permissions` (
+  `rid` int(11) NOT NULL COMMENT 'rid associated with the id in role',
+  `module` varchar(255) NOT NULL COMMENT 'module name associated with loaded module',
+  `allowed` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Boolean for user access'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='User Permissions Table';
 
 -- --------------------------------------------------------
 
@@ -120,14 +130,16 @@ INSERT INTO `users` (`uid`, `name`, `pass`, `mail`, `signature`, `created`, `acc
 CREATE TABLE `user_roles` (
   `uid` int(11) NOT NULL,
   `rid` int(11) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='User_Roles Many-to-Many table';
+
+INSERT INTO `user_roles` (`uid`, `rid`) VALUES (1, 1);
 
 --
 -- Indexes for dumped tables
 --
 
 --
--- Indexes for table `cache`
+-- Indexes for table `cache`-
 --
 ALTER TABLE `cache`
   ADD PRIMARY KEY (`cid`);
@@ -168,6 +180,12 @@ ALTER TABLE `users`
   ADD UNIQUE KEY `name` (`name`);
 
 --
+-- Indexes for table `user_permissions`
+--
+ALTER TABLE `user_permissions`
+  ADD KEY `rid` (`rid`,`module`);
+
+--
 -- Indexes for table `user_roles`
 --
 ALTER TABLE `user_roles`
@@ -182,7 +200,7 @@ ALTER TABLE `user_roles`
 -- AUTO_INCREMENT for table `logger`
 --
 ALTER TABLE `logger`
-  MODIFY `lid` int(11) NOT NULL AUTO_INCREMENT COMMENT 'Log Primary Key';
+  MODIFY `lid` int(11) NOT NULL AUTO_INCREMENT;
 --
 -- AUTO_INCREMENT for table `login_token`
 --

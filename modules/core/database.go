@@ -23,29 +23,26 @@ func InitDatabase() {
 	var db Database
 	var err error
 	var user, pass string
-	Sys("Starting", "DB")
+	Logger("Starting", "DB", MSG)
 	options := OptionsHandler.GetOptions("Core")
-	if err != nil {
-		Error(err, "DB")
-	}
 	if options["User"] == nil {
-		Error(err, "Cache")
+		Logger(err.Error(), "DB", FATAL)
 	}
 	if options["Pass"] == nil {
-		Error(err, "Cache")
+		Logger(err.Error(), "DB", FATAL)
 	}
 	user = options["User"].(string)
 	pass = options["Pass"].(string)
 	db.dsn = user + ":" + pass + "@/saviour"
-	Sys("DSNLoaded", "DB")
+	Logger("DSNLoaded", "DB", MSG)
 	// Open Database
 	db.sql, err = sql.Open("mysql", db.dsn)
 	if err != nil {
-		Error(err, "Cache")
+		Logger(err.Error(), "DB", FATAL)
 	}
 	err = db.sql.Ping()
 	if err != nil {
-		Error(err, "Cache")
+		Logger(err.Error(), "DB", FATAL)
 	}
 
 	db.checkDB()
@@ -57,16 +54,16 @@ func (db *Database) checkDB() {
 	tables := make([]string, 0)
 	rows, err := db.sql.Query(`SHOW TABLES`)
 	if err != nil {
-		Error(err, "Cache")
+		Logger(err.Error(), "DB", ERROR)
 	}
-	Sys("AvaliableTables", "DB")
+	Logger("AvaliableTables", "DB", MSG)
 	for rows.Next() {
 		var table string
 		err = rows.Scan(&table)
 		if err != nil {
-			Error(err, "Cache")
+			Logger(err.Error(), "Cache", ERROR)
 		}
-		Sys(table, "DB")
+		Logger(table, "DB", MSG)
 		tables = append(tables, table)
 	}
 	db.createTables(tables)

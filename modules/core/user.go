@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
-	"errors"
 	"strconv"
 	"time"
 
@@ -14,10 +13,15 @@ import (
 // User handles users
 type User struct {
 	uid         int
+	roles       map[string]int
 	name, token string
-	db          *Database
 	online      bool
 }
+
+const (
+	// USER module name constant
+	USER = "User"
+)
 
 // InitUser constructs the user on initial login
 // CheckUserLogin inputs username and password and checks if it matches
@@ -29,16 +33,18 @@ func InitUser(name string, pass string) (bool, map[string]interface{}, *User) {
 	var exists bool
 	var cacheMap map[string]interface{}
 	user.online = false
-	user.db = DBHandler
-	Sys("CheckUserLogin::"+name, "User")
+	Logger("CheckUserLogin::"+name, USER, MSG)
 	exists, user.uid = GetUserID(name)
 	if exists {
+		user.UpdateCache()
 		cacheMap = user.GetCache()
 		if user.CheckPassword(pass, cacheMap["pass"].(string)) {
 			user.token = user.CheckTokenExists()
+			user.name = cacheMap["name"].(string)
+			user.roles = user.GetUserRoleMap()
 			verified = true
 		} else {
-			Warn(errors.New("InvalidPassword::"+name), "User")
+			Logger("InvalidPassword::"+name, USER, WARN)
 		}
 	}
 	return verified, cacheMap, &user
@@ -58,15 +64,23 @@ func (user *User) CheckTokenExists() string {
 
 // VerifyToken verify the user token
 func (user *User) VerifyToken(token string) bool {
-	if token == user.GetToken() {
-		return true
+	exists := false
+	userToken := user.GetToken()
+	Logger("Match::Token::"+token+"::"+userToken, USER, MSG)
+	if token == userToken {
+		exists = true
 	}
-	return false
+	return exists
 }
 
 // GetName returns username
 func (user *User) GetName() string {
 	return user.name
+}
+
+// GetRoleNames returns the role names assigned to this user
+func (user *User) GetRoleNames() map[string]int {
+	return user.roles
 }
 
 // GetEmail returns email from cache
@@ -90,23 +104,47 @@ func (user *User) GetUserMap() map[string]interface{} {
 	return user.GetCache()
 }
 
+// GetUserRoleMap is loading the role map from the database and returning it
+func (user *User) GetUserRoleMap() map[string]int {
+	var rid int
+	var roleName string
+	var roleMap map[string]int
+	rows, err := DBHandler.sql.Query(`SELECT user_roles.rid, role.name FROM users `+
+		`INNER JOIN user_roles ON users.uid = user_roles.uid `+
+		`INNER JOIN role ON user_roles.rid = role.rid `+
+		`WHERE users.uid = ?`, user.uid)
+	if err != nil {
+		Logger(err.Error(), USER, ERROR)
+	}
+	roleMap = make(map[string]int)
+	for rows.Next() {
+		rows.Scan(&rid, &roleName)
+		roleMap[roleName] = rid
+	}
+	return roleMap
+}
+
 // SetOnline will set the flag to the input
 func (user *User) SetOnline(isOnline bool) {
 	if !isOnline {
-		Sys("SetOffline", "User")
+		Logger("SetOffline", USER, MSG)
 		user.online = false
 		offline := "Offline"
-		_, err := user.db.sql.Exec(`UPDATE users SET status = ? WHERE uid = ?`, offline, user.uid)
+		_, err := DBHandler.sql.Exec(
+			`UPDATE users SET status = ? `+
+				`WHERE uid = ?`, offline, user.uid)
 		if err != nil {
-			Error(err, "User")
+			Logger(err.Error(), USER, ERROR)
 		}
 	} else {
-		Sys("SetOnline", "User")
+		Logger("SetOnline", USER, MSG)
 		online := "Online"
 		user.online = true
-		_, err := user.db.sql.Exec(`UPDATE users SET status = ? WHERE uid = ?`, online, user.uid)
+		_, err := DBHandler.sql.Exec(
+			`UPDATE users SET status = ? `+
+				`WHERE uid = ?`, online, user.uid)
 		if err != nil {
-			Error(err, "User")
+			Logger(err.Error(), USER, ERROR)
 		}
 	}
 }
@@ -114,9 +152,11 @@ func (user *User) SetOnline(isOnline bool) {
 // SetPassword sets the users password
 func (user *User) SetPassword(pass string) {
 	hashPass := GenHashPassword(pass)
-	_, err := user.db.sql.Exec(`UPDATE users SET pass = ? WHERE uid = ?`, hashPass, user.uid)
+	_, err := DBHandler.sql.Exec(
+		`UPDATE users SET pass = ? `+
+			`WHERE uid = ?`, hashPass, user.uid)
 	if err != nil {
-		Error(err, "User")
+		Logger(err.Error(), USER, ERROR)
 	}
 	user.UpdateCache()
 }
@@ -135,15 +175,17 @@ func (user *User) CheckToken(uid int) (bool, string) {
 	var token string
 	var expTime int64
 	exists := false
-	err := user.db.sql.QueryRow(`SELECT token, expires FROM login_token WHERE uid = ?`, uid).Scan(&token, &expTime)
+	err := DBHandler.sql.QueryRow(
+		`SELECT token, expires FROM login_token `+
+			`WHERE uid = ?`, uid).Scan(&token, &expTime)
 	switch {
 	case err == sql.ErrNoRows:
-		Sys("TokenNotFound", "User")
+		Logger("TokenNotFound", USER, MSG)
 	case err != nil:
-		Error(err, "User")
+		Logger(err.Error(), USER, ERROR)
 	default:
-		Sys("TokenFound", "User")
 		if time.Now().Unix() < expTime {
+			Logger("TokenFound", USER, MSG)
 			exists = true
 		}
 	}
@@ -152,12 +194,13 @@ func (user *User) CheckToken(uid int) (bool, string) {
 
 // StoreToken writes user token to the database
 func (user *User) StoreToken(uid int, token string) {
-	Sys("StoreNewToken", "User")
+	Logger("StoreNewToken", USER, MSG)
 	expTime := time.Now().Add(time.Duration(24) * time.Hour).Unix()
-	_, err := user.db.sql.Exec(`INSERT INTO login_token(uid, token, expires) VALUES (?, ?, ?)`+
-		`ON DUPLICATE KEY UPDATE token = ?, expires = ?`, uid, token, expTime, token, expTime)
+	_, err := DBHandler.sql.Exec(
+		`INSERT INTO login_token(uid, token, expires) VALUES (?, ?, ?) `+
+			`ON DUPLICATE KEY UPDATE token = ?, expires = ?`, uid, token, expTime, token, expTime)
 	if err != nil {
-		Error(err, "User")
+		Logger(err.Error(), USER, ERROR)
 	}
 }
 
@@ -165,7 +208,7 @@ func (user *User) StoreToken(uid int, token string) {
 func (user *User) GetCache() map[string]interface{} {
 	exists, userCache := CacheHandler.Cache(user)
 	if !exists {
-		Error(errors.New("FailedToLoadCache"), "User")
+		Logger("FailedToLoadCache", USER, ERROR)
 	}
 	return userCache
 }
@@ -190,25 +233,22 @@ func (user *User) CacheID() string {
 // loadCacheValues loads the user information from the database and places
 // them in a map for loading into the cache
 func (user *User) loadCacheValues() map[string]interface{} {
-	var uid, access int
+	var uid int
 	var name, pass, email, status, token string
 	cacheMap := make(map[string]interface{})
-	err := user.db.sql.QueryRow(
-		`SELECT users.uid, users.name, users.pass, users.mail, users.status, login_token.token, role.weight FROM users `+
-			`INNER JOIN login_token ON users.uid = login_token.uid `+
-			`INNER JOIN user_roles ON user_roles.uid = users.uid `+
-			`INNER JOIN role ON user_roles.rid = role.rid `+
-			`WHERE users.uid = ?`, user.uid).Scan(&uid, &name, &pass, &email, &status, &token, &access)
+	err := DBHandler.sql.QueryRow(
+		`SELECT users.uid, users.name, users.pass, users.mail, users.status FROM users `+
+			`WHERE users.uid = ?`, user.uid).Scan(&uid, &name, &pass, &email, &status)
 	if err != nil {
-		Error(err, "User")
+		Logger(err.Error(), USER, ERROR)
 	}
+	Logger("UserCache::"+name+"::"+pass+"::"+email+"::"+status+"::"+token, USER, MSG)
 	cacheMap["uid"] = uid
 	cacheMap["name"] = name
 	cacheMap["pass"] = pass
 	cacheMap["email"] = email
-	cacheMap["token"] = token
 	cacheMap["status"] = status
-	cacheMap["level"] = access
+	cacheMap["token"] = token
 	return cacheMap
 }
 
@@ -217,7 +257,7 @@ func GenToken(length int) string {
 	byte := make([]byte, length)
 	_, err := rand.Read(byte)
 	if err != nil {
-		Error(err, "User")
+		Logger(err.Error(), USER, ERROR)
 	}
 	return base64.URLEncoding.EncodeToString(byte)
 }
@@ -226,14 +266,15 @@ func GenToken(length int) string {
 func GetUserID(name string) (bool, int) {
 	var uid int
 	exists := true
-	Sys("GetUserID::"+name, "User")
-	err := DBHandler.sql.QueryRow("SELECT uid FROM users WHERE name = ?", name).Scan(&uid)
+	Logger("GetUserID::"+name, USER, MSG)
+	err := DBHandler.sql.QueryRow(
+		"SELECT uid FROM users WHERE name = ?", name).Scan(&uid)
 	switch {
 	case err == sql.ErrNoRows:
-		Sys("UserNotFound", "User")
+		Logger("UserNotFound", USER, MSG)
 		exists = false
 	case err != nil:
-		Error(err, "User")
+		Logger(err.Error(), USER, ERROR)
 		exists = false
 	}
 	return exists, uid

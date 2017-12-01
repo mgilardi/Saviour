@@ -6,7 +6,6 @@ package core
 
 import (
 	"encoding/json"
-	"errors"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -31,7 +30,7 @@ func initOption(name string) *Option {
 func (opt *Option) GetValues() map[string]interface{} {
 	exists, cacheMap := CacheHandler.Cache(opt)
 	if !exists {
-		Error(errors.New("CouldNotLoadCacheOptions::"+opt.name), "Config")
+		Logger("CouldNotLoadCacheOptions::"+opt.name, "Config", ERROR)
 	}
 	return cacheMap
 }
@@ -73,10 +72,10 @@ func InitOptions() {
 	opt.options = make(map[string]*Option)
 	dir, err := ioutil.ReadDir(os.Getenv("GOPATH") + "/src/Saviour/modules")
 	if err != nil {
-		Error(err, "Config")
+		Logger(err.Error(), "Config", ERROR)
 	}
 	for _, file := range dir {
-		Sys("LoadingOptionsFile::"+file.Name(), "Config")
+		Logger("LoadingOptionsFile::"+file.Name(), "Config", MSG)
 		newOption := initOption(file.Name())
 		opt.options[file.Name()] = newOption
 	}
@@ -104,11 +103,11 @@ func getOptions(module string) map[string]interface{} {
 		strings.ToLower(module) + "/settings.json"
 	raw, err := ioutil.ReadFile(optionsMap["Path"].(string))
 	if err != nil {
-		Error(err, "Config")
+		Logger(err.Error(), "Config", ERROR)
 	}
 	err = json.Unmarshal(raw, &optionsMap)
 	if err != nil {
-		Error(err, "Config")
+		Logger(err.Error(), "Config", ERROR)
 	}
 	return optionsMap
 }

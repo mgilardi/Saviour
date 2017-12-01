@@ -38,7 +38,7 @@ func (cron *Cron) startInterval() {
 	go func() {
 		for {
 			time.Sleep(<-cron.intervalChan)
-			Sys("CronStarting", "Cron")
+			Logger("CronStarting", "Cron", MSG)
 			cron.Push()
 			chanIntervalReset <- true
 		}
@@ -78,7 +78,7 @@ func (cron *Cron) Interval(interval int) {
 
 // BatchWork will run all jobs located in an array of functions
 func BatchWork(jobs map[int]func()) {
-	Sys("Batch_Jobs_Recieved::"+strconv.Itoa(len(jobs)), "Cron")
+	Logger("Batch_Jobs_Recieved::"+strconv.Itoa(len(jobs)), "Cron", MSG)
 	for _, job := range jobs {
 		Work(job)
 	}
@@ -88,10 +88,9 @@ func BatchWork(jobs map[int]func()) {
 func Work(job func()) {
 	go func() {
 		done := make(chan bool)
-		Sys("Job::Starting", "Cron")
 		go Run(done, job)
 		<-done
-		Sys("Job::Done", "Cron")
+		Logger("Job::Done", "Cron", MSG)
 	}()
 }
 

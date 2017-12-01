@@ -7,7 +7,7 @@ import (
 
 func TestCron_InitCron(t *testing.T) {
 	CronHandler.Add(func() {
-		Sys("Test", "Test")
+		Logger("Test", "Test", MSG)
 	})
 	CronHandler.Push()
 	CronHandler.Interval(1)

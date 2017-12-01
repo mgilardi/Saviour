@@ -5,17 +5,14 @@ import (
 	"testing"
 )
 
-var ThisUser *User
-
 func TestUser_CheckUserLogin(t *testing.T) {
-	var exists bool
-	exists, _, ThisUser = InitUser("Admin", "Password")
+	exists, userMap, currentUser := InitUser("Admin", "Password")
 	if exists {
-		// Pass
-		Sys("Loading::"+ThisUser.GetName(), "Test")
-		Sys("Token::"+ThisUser.GetToken(), "Test")
-		Sys("IsOnline::"+strconv.FormatBool(ThisUser.IsOnline()), "Test")
+		Logger("Loading::"+currentUser.GetName(), "Test", MSG)
+		Logger("Email::"+userMap["email"].(string), "Test", MSG)
+		Logger("Token::"+currentUser.GetToken(), "Test", MSG)
+		Logger("IsOnline::"+currentUser.GetName()+"::"+strconv.FormatBool(currentUser.IsOnline()), "Test", MSG)
 	} else {
-		t.Error("LoadingAdminFailed")
+		t.Error("LoadingUserFailed")
 	}
 }

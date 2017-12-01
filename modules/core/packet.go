@@ -2,14 +2,9 @@ package core
 
 import (
 	"encoding/json"
-	"errors"
 	"regexp"
 
 	"gopkg.in/go-playground/validator.v9"
-)
-
-const (
-	thisModuleSanitize = "Sanitize"
 )
 
 // DataPacket is the struct that json files are loaded into when marshaled
@@ -38,7 +33,7 @@ func genDataPacket(token string, message string, status int, username string) []
 	packet.Saviour.Username = username
 	buf, err := json.Marshal(&packet)
 	if err != nil {
-		Error(err, "Packet")
+		Logger(err.Error(), "Packet", ERROR)
 	}
 	return buf
 }
@@ -49,7 +44,7 @@ func loadDataPacket(buf []byte) (bool, DataPacket) {
 	valid := true
 	err := json.Unmarshal(buf, &packet)
 	if err != nil {
-		Error(err, "Packet")
+		Logger(err.Error(), "Packet", ERROR)
 		valid = false
 	}
 	return valid, sanitizePacket(packet)
@@ -63,49 +58,49 @@ func sanitizePacket(packet DataPacket) DataPacket {
 		for _, err := range err.(validator.ValidationErrors) {
 			switch err.Field() {
 			case "User":
-				Warn(errors.New("PacketValidation::UserField"), thisModuleSanitize)
-				Sys("Sanitizing::"+packet.Login.User, "Sanitize")
+				Logger("PacketValidation::UserField", "Sanitize", WARN)
+				Logger("Sanitizing::"+packet.Login.User, "Sanitize", MSG)
 				regex := regexp.MustCompile("[^a-zA-Z0-9]")
 				packet.Login.User = regex.ReplaceAllString(packet.Login.User, "")
 				packet.Login.User = checkDataSize(packet.Login.User, 45)
-				Sys("Sanitized::"+packet.Login.User, "Sanitize")
+				Logger("Sanitized::"+packet.Login.User, "Sanitize", MSG)
 			case "Pass":
-				Warn(errors.New("PacketValidation::PassField"), thisModuleSanitize)
-				Sys("Sanitizing::"+packet.Login.Pass, "Sanitize")
+				Logger("PacketValidation::PassField", "Sanitize", WARN)
+				Logger("Sanitizing::"+packet.Login.Pass, "Sanitize", MSG)
 				regex := regexp.MustCompile("[^a-zA-Z0-9]")
 				packet.Login.Pass = regex.ReplaceAllString(packet.Login.Pass, "")
 				packet.Login.Pass = checkDataSize(packet.Login.Pass, 45)
-				Sys("Sanitized::"+packet.Login.Pass, "Sanitize")
+				Logger("Sanitized::"+packet.Login.Pass, "Sanitize", MSG)
 			case "Email":
-				Warn(errors.New("PacketValidation::EmailField"), thisModuleSanitize)
-				Sys("Sanitizing::"+packet.Login.Email, "Sanitize")
+				Logger("PacketValidation::EmailField", "Sanitize", WARN)
+				Logger("Sanitizing::"+packet.Login.Email, "Sanitize", MSG)
 				regex := regexp.MustCompile("[^a-zA-Z0-9._@]")
 				packet.Login.Email = regex.ReplaceAllString(packet.Login.Email, "")
 				packet.Login.Email = checkDataSize(packet.Login.Email, 45)
-				Sys("Sanitized::"+packet.Login.Email, "Sanitize")
+				Logger("Sanitized::"+packet.Login.Email, "Sanitize", MSG)
 			case "Username":
-				Warn(errors.New("PacketValidation::UsernameField"), thisModuleSanitize)
-				Sys("Sanitizing::"+packet.Saviour.Username, "Sanitize")
+				Logger("PacketValidation::UsernameField", "Sanitize", WARN)
+				Logger("Sanitizing::"+packet.Saviour.Username, "Sanitize", MSG)
 				regex := regexp.MustCompile("[^a-zA-Z0-9]")
 				packet.Saviour.Username = regex.ReplaceAllString(packet.Saviour.Username, "")
 				packet.Saviour.Username = checkDataSize(packet.Saviour.Username, 45)
-				Sys("Sanitized::"+packet.Saviour.Username, "Sanitize")
+				Logger("Sanitized::"+packet.Saviour.Username, "Sanitize", MSG)
 			case "Token":
-				Warn(errors.New("PacketValidation::TokenField"), thisModuleSanitize)
-				Sys("Sanitizing::"+packet.Saviour.Token, "Sanitize")
+				Logger("PacketValidation::TokenField", "Sanitize", WARN)
+				Logger("Sanitizing::"+packet.Saviour.Token, "Sanitize", MSG)
 				regex := regexp.MustCompile(`[^A-Za-z0-9+-_\/=]`)
 				packet.Saviour.Token = regex.ReplaceAllString(packet.Saviour.Token, "")
 				packet.Saviour.Token = checkDataSize(packet.Saviour.Token, 45)
-				Sys("Sanitized::"+packet.Saviour.Token, "Sanitize")
+				Logger("Sanitized::"+packet.Saviour.Token, "Sanitize", MSG)
 			case "Message":
-				Warn(errors.New("PacketValidation::MessageField"), thisModuleSanitize)
-				Sys("Sanitizing::"+packet.Saviour.Message, "Sanitize")
+				Logger("PacketValidation::MessageField", "Sanitize", WARN)
+				Logger("Sanitizing::"+packet.Saviour.Message, "Sanitize", MSG)
 				regex := regexp.MustCompile(`[^A-Za-z0-9+-:_\/=]`)
 				packet.Saviour.Message = regex.ReplaceAllString(packet.Saviour.Message, "")
 				packet.Saviour.Message = checkDataSize(packet.Saviour.Message, 45)
-				Sys("Sanitized::"+packet.Saviour.Message, "Sanitize")
+				Logger("Sanitized::"+packet.Saviour.Message, "Sanitize", MSG)
 			case "Status":
-				Warn(errors.New("PacketValidation::StatusField"), thisModuleSanitize)
+				Logger("PacketValidation::StatusField", "Sanitize", WARN)
 				packet.Saviour.Status = 200
 			default:
 				// Ignore

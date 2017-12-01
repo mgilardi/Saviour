@@ -93,7 +93,6 @@ func (dbg *debug) Write() {
 
 // Logger struct contains database
 type logger struct {
-	db           *Database
 	logType      string
 	logModule    string
 	logMsg       string
@@ -107,7 +106,6 @@ func InitLogger() {
 	var newLogDB logger
 	newLogDB.isOn = true
 	newLogDB.logLevel = 2
-	newLogDB.db = DBHandler
 	logHandler = append(logHandler, &newLogDB)
 }
 
@@ -175,43 +173,24 @@ func (logger *logger) Enabled() bool {
 
 // WriteLog writes log entry into the database
 func (logger *logger) Write() {
-	_, err := logger.db.sql.Exec(`INSERT INTO logger (type, module, message) VALUES (?, ?, ?)`,
+	_, err := DBHandler.sql.Exec(
+		`INSERT INTO logger (type, module, message) VALUES (?, ?, ?)`,
 		logger.logType, logger.logModule, logger.logMsg)
 	if err != nil {
-		Error(err, "Cache")
+		Logger(err.Error(), "Logger", ERROR)
 	}
 }
 
 // System Message Constants
 const (
-	SYS   = 0
+	MSG   = 0
 	WARN  = 1
 	ERROR = 2
 	FATAL = 3
 )
 
-// Error outputs an error to both debug and logger
-func Error(err error, module string) {
-	msgHandle(err.Error(), module, ERROR)
-}
-
-// Sys output a system message to both debug and logger
-func Sys(msg string, module string) {
-	msgHandle(msg, module, SYS)
-}
-
-// Warn outputs a warning message to both debug and logger
-func Warn(err error, module string) {
-	msgHandle(err.Error(), module, WARN)
-}
-
-// Fatal outputs a fatal message to both debug and logger
-func Fatal(err error, module string) {
-	msgHandle(err.Error(), module, FATAL)
-	os.Exit(1)
-}
-
-func msgHandle(msg string, module string, typ int) {
+// Logger Global input variable for logger module
+func Logger(msg string, module string, typ int) {
 	for _, logData := range logHandler {
 		logData.SetError(msg, module, typ)
 	}
