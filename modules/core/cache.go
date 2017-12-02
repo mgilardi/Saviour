@@ -154,6 +154,7 @@ func (cache *Cache) GetCache(obj CacheObj) (bool, map[string]interface{}) {
 		exists = true
 	case err != nil:
 		Logger(err.Error(), "Cache", ERROR)
+		// @TODO Create expired cache entry during test
 	case expires.Valid:
 		if !(expires.Int64 < time.Now().Unix()) {
 			exists = true

@@ -66,6 +66,7 @@ type Options struct {
 }
 
 // InitOptions initializes the options struct
+// @TODO Get path dynamically instead of hard coding: /src/Saviour/modules
 func InitOptions() {
 	var opt Options
 	opt.cacheLoaded = false
@@ -96,6 +97,7 @@ func (opts *Options) CacheLoaded() {
 }
 
 // GetOptions returns an map with the loaded options from the json settings file
+// @TODO Find the Go equivellent of: PHP's __FUNCTION__ . __FILE__ . __LINE__
 func getOptions(module string) map[string]interface{} {
 	var optionsMap map[string]interface{}
 	optionsMap = make(map[string]interface{})

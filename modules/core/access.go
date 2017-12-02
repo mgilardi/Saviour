@@ -43,6 +43,7 @@ func InitAccess() {
 	access.accessMap = make(map[string]*AccessObj)
 	access.loadDB()
 	AccessHandler = &access
+
 }
 
 // CreateUserRole creates a new user role named with input
@@ -166,7 +167,7 @@ func (access *Access) loadDB() {
 	Logger("LoadingAccessFromDB", ACCESS, MSG)
 	rows, _ := DBHandler.sql.Query(
 		`SELECT user_permissions.rid, module, allowed, name FROM user_permissions ` +
-			`INNER JOIN role ON user_permissions.rid = role.rid`)
+			` JOIN role ON user_permissions.rid = role.rid`)
 	for rows.Next() {
 		err := rows.Scan(&rid, &module, &allowed, &name)
 		if err != nil {
@@ -211,6 +212,7 @@ func (access *Access) updateDB() {
 				`SELECT allowed FROM user_permissions `+
 					`WHERE rid = ? AND module = ?`, roleMap[usrTyp], name).Scan(&allowed)
 			switch {
+			// @TODO Checkout the MySQL REPLACE statement.
 			case err == sql.ErrNoRows:
 				Logger("CreatingNewEntry", ACCESS, MSG)
 				_, err = DBHandler.sql.Exec(

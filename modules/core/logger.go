@@ -8,8 +8,6 @@ import (
 	"os"
 )
 
-var logHandler []log
-
 type log interface {
 	SetError(string, string, int)
 	CheckLevel() bool
@@ -25,6 +23,16 @@ type debug struct {
 	currentLevel int
 }
 
+// System Message Constants
+const (
+	MSG   = 0
+	WARN  = 1
+	ERROR = 2
+	FATAL = 3
+)
+
+var logHandler []log
+
 // InitDebug initializes the debug struct
 func InitDebug(on bool) {
 	var newDebug debug
@@ -32,6 +40,7 @@ func InitDebug(on bool) {
 	logHandler = append(logHandler, &newDebug)
 }
 
+// @TODO Remove case statement
 func (dbg *debug) SetError(message string, module string, typ int) {
 	switch typ {
 	case 0:
@@ -180,14 +189,6 @@ func (logger *logger) Write() {
 		Logger(err.Error(), "Logger", ERROR)
 	}
 }
-
-// System Message Constants
-const (
-	MSG   = 0
-	WARN  = 1
-	ERROR = 2
-	FATAL = 3
-)
 
 // Logger Global input variable for logger module
 func Logger(msg string, module string, typ int) {

@@ -109,9 +109,10 @@ func (user *User) GetUserRoleMap() map[string]int {
 	var rid int
 	var roleName string
 	var roleMap map[string]int
-	rows, err := DBHandler.sql.Query(`SELECT user_roles.rid, role.name FROM users `+
-		`INNER JOIN user_roles ON users.uid = user_roles.uid `+
-		`INNER JOIN role ON user_roles.rid = role.rid `+
+	rows, err := DBHandler.sql.Query(`SELECT user_roles.rid, role.name `+
+		`FROM users `+
+		`JOIN user_roles ON users.uid = user_roles.uid `+
+		`JOIN role ON user_roles.rid = role.rid `+
 		`WHERE users.uid = ?`, user.uid)
 	if err != nil {
 		Logger(err.Error(), USER, ERROR)

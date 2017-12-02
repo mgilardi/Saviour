@@ -3,6 +3,8 @@ package core
 // Cron takes in functions and adds them to a map that is run at a specified
 // interval. It employs two go routines a controller/worker
 
+// @TODO Pick an order for var, type, const and do the same in all files.
+
 import (
 	"strconv"
 	"time"
@@ -33,8 +35,11 @@ func InitCron() {
 	CronHandler = &cron
 }
 
+// @TODO Commment
 func (cron *Cron) startInterval() {
 	chanIntervalReset := make(chan bool)
+
+	// "go func" Creates a time interval thread
 	go func() {
 		for {
 			time.Sleep(<-cron.intervalChan)
@@ -43,6 +48,8 @@ func (cron *Cron) startInterval() {
 			chanIntervalReset <- true
 		}
 	}()
+
+	// "go func" Creates a time interval thread
 	go func() {
 		interval := <-cron.intervalSet
 		cron.intervalChan <- interval

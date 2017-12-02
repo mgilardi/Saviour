@@ -1,5 +1,9 @@
 package main
 
+// @TODO Check for existing DB and if it doesn't exist create it and store password in settings file.
+// @TODO Explore debugging/break points
+// @TODO Set width standard for coding + find readme.md file.
+
 import (
 	"Saviour/modules/core"
 	"flag"

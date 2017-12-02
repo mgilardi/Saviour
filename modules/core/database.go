@@ -18,6 +18,8 @@ type Database struct {
 	dsn string
 }
 
+// @TODO Put wrapper around SQL statements for transactions
+
 // InitDatabase initialize the database object and passes a pointer to the main loop
 func InitDatabase() {
 	var db Database
@@ -80,6 +82,7 @@ func (db *Database) createTables(currentTables []string) {
 // ResetIncrement keeps the increment tidy in the database
 func (db *Database) ResetIncrement(tables ...string) {
 	var maxIncrement int
+	// @TODO Don't do this.
 	for _, table := range tables {
 		db.sql.QueryRow(`SELECT MAX(UID) + 1 FROM ?`, table).Scan(&maxIncrement)
 		db.sql.Exec(`ALTER TABLE ? AUTO_INCREMENT = ?`, table, maxIncrement)
