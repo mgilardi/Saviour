@@ -35,12 +35,12 @@ func InitUser(name string, pass string) (bool, map[string]interface{}, *User) {
 	user.online = false
 	Logger("CheckUserLogin::"+name, USER, MSG)
 	exists, user.uid = GetUserID(name)
+	user.name = name
 	if exists {
 		user.UpdateCache()
 		cacheMap = user.GetCache()
 		if user.CheckPassword(pass, cacheMap["pass"].(string)) {
 			user.token = user.CheckTokenExists()
-			user.name = cacheMap["name"].(string)
 			user.roles = user.GetUserRoleMap()
 			verified = true
 		} else {
@@ -94,11 +94,6 @@ func (user *User) GetToken() string {
 	return user.token
 }
 
-// IsOnline returns the online flag for the user
-func (user *User) IsOnline() bool {
-	return user.online
-}
-
 // GetUserMap returns the user map containing the database user information
 func (user *User) GetUserMap() map[string]interface{} {
 	return user.GetCache()
@@ -125,40 +120,13 @@ func (user *User) GetUserRoleMap() map[string]int {
 	return roleMap
 }
 
-// SetOnline will set the flag to the input
-func (user *User) SetOnline(isOnline bool) {
-	if !isOnline {
-		Logger("SetOffline", USER, MSG)
-		user.online = false
-		offline := "Offline"
-		_, err := DBHandler.sql.Exec(
-			`UPDATE users SET status = ? `+
-				`WHERE uid = ?`, offline, user.uid)
-		if err != nil {
-			Logger(err.Error(), USER, ERROR)
-		}
-	} else {
-		Logger("SetOnline", USER, MSG)
-		online := "Online"
-		user.online = true
-		_, err := DBHandler.sql.Exec(
-			`UPDATE users SET status = ? `+
-				`WHERE uid = ?`, online, user.uid)
-		if err != nil {
-			Logger(err.Error(), USER, ERROR)
-		}
-	}
-}
-
 // SetPassword sets the users password
 func (user *User) SetPassword(pass string) {
 	hashPass := GenHashPassword(pass)
-	_, err := DBHandler.sql.Exec(
+	updatePassword := DBHandler.SetupExec(
 		`UPDATE users SET pass = ? `+
 			`WHERE uid = ?`, hashPass, user.uid)
-	if err != nil {
-		Logger(err.Error(), USER, ERROR)
-	}
+	DBHandler.Exec(updatePassword)
 	user.UpdateCache()
 }
 
@@ -197,12 +165,10 @@ func (user *User) CheckToken(uid int) (bool, string) {
 func (user *User) StoreToken(uid int, token string) {
 	Logger("StoreNewToken", USER, MSG)
 	expTime := time.Now().Add(time.Duration(24) * time.Hour).Unix()
-	_, err := DBHandler.sql.Exec(
+	insertToken := DBHandler.SetupExec(
 		`INSERT INTO login_token(uid, token, expires) VALUES (?, ?, ?) `+
 			`ON DUPLICATE KEY UPDATE token = ?, expires = ?`, uid, token, expTime, token, expTime)
-	if err != nil {
-		Logger(err.Error(), USER, ERROR)
-	}
+	DBHandler.Exec(insertToken)
 }
 
 // GetCache requests user info from cache
@@ -221,14 +187,15 @@ func (user *User) UpdateCache() {
 
 // Cache is called to load user information into the cache
 func (user *User) Cache() (string, map[string]interface{}) {
-	cid := user.GetName() + ":" + strconv.Itoa(user.uid) + ":UserData"
+	cid := user.name + ":" + strconv.Itoa(user.uid) + ":UserData"
 	cacheMap := user.loadCacheValues()
 	return cid, cacheMap
 }
 
 // CacheID returns the cache id for this user
 func (user *User) CacheID() string {
-	return user.GetName() + ":" + strconv.Itoa(user.uid) + ":UserData"
+	cid := user.name + ":" + strconv.Itoa(user.uid) + ":UserData"
+	return cid
 }
 
 // loadCacheValues loads the user information from the database and places

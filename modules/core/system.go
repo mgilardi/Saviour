@@ -41,7 +41,7 @@ func InitSystem() {
 // ListenAndServ starts the server listing on port
 func (sys System) handleRequest() {
 	serv := &http.Server{
-		Addr:         sys.hostname + ":" + sys.port,
+		Addr:         ":" + sys.port,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
 		IdleTimeout:  5 * time.Second,
@@ -112,13 +112,11 @@ func (sys System) loginRequest(w http.ResponseWriter, r *http.Request) {
 	case !valid:
 		buf = genDataPacket("", "InvalidRequest", status, packet.Login.User)
 		Logger("LoginFailed::InvalidRequest::"+packet.Login.User, SYSTEM, WARN)
-	case exists:
-		buf = genDataPacket("", "UserAlreadyLoggedIn", status, userMap["name"].(string))
-		Logger("LoginFailed::UserLoggedIn::"+userMap["name"].(string), SYSTEM, WARN)
 	default:
 		status = 200
-		currentUser.SetOnline(true)
-		sys.conUsers[packet.Login.User] = currentUser
+		if !exists {
+			sys.conUsers[packet.Login.User] = currentUser
+		}
 		buf = genDataPacket(currentUser.GetToken(), "LoginSuccessful", status, userMap["name"].(string))
 		Logger("LoginSuccessful::"+userMap["name"].(string), SYSTEM, MSG)
 	}
@@ -149,7 +147,6 @@ func (sys System) logoffRequest(w http.ResponseWriter, r *http.Request) {
 			buf = genDataPacket("", "InvalidToken", status, userMap["name"].(string))
 		} else {
 			status = 200
-			currentUser.SetOnline(false)
 			Logger("LogoffSuccsessful::"+userMap["name"].(string), SYSTEM, MSG)
 			buf = genDataPacket(userMap["token"].(string), "LogOff::Sucsessful", status, userMap["name"].(string))
 			delete(sys.conUsers, userMap["name"].(string))
@@ -215,13 +212,15 @@ func (sys System) CreateUser(name string, pass string, email string) error {
 	default:
 		Logger("CreatingUser::Name:"+name+"::"+email, SYSTEM, MSG)
 		hashPass := GenHashPassword(pass)
-		_, dberr := DBHandler.sql.Exec(`INSERT INTO users (name, pass, mail) VALUES (?, ?, ?)`, name, hashPass, email)
-		if dberr != nil {
-			Logger(dberr.Error(), SYSTEM, ERROR)
-		}
-		_, uid := GetUserID(name)
 		roleMap := AccessHandler.genRoleNameMap()
-		_, dberr = DBHandler.sql.Exec(`INSERT INTO user_roles (uid, rid) VALUES (?, ?)`, uid, roleMap["user"])
+		_, uid := GetUserID(name)
+		insertUser := DBHandler.SetupExec(
+			`INSERT INTO users (name, pass, mail) `+
+				`VALUES (?, ?, ?)`, name, hashPass, email)
+		insertUserRole := DBHandler.SetupExec(
+			`INSERT INTO user_roles (uid, rid) `+
+				`VALUES (?, ?)`, uid, roleMap["user"])
+		DBHandler.Exec(insertUser, insertUserRole)
 	}
 	return err
 }
@@ -231,18 +230,11 @@ func (sys System) RemoveUser(name string) {
 	Logger("RemoveUser::"+name, SYSTEM, MSG)
 	exists, uid := GetUserID(name)
 	if exists {
-		tx, err := DBHandler.sql.Begin()
-		_, err = tx.Exec(`DELETE FROM login_token WHERE uid = ?`, uid)
-		_, err = tx.Exec(`DELETE FROM user_roles WHERE uid = ?`, uid)
-		_, err = tx.Exec(`DELETE FROM sessions WHERE uid = ?`, uid)
-		_, err = tx.Exec(`DELETE FROM users WHERE uid = ?`, uid)
-		if err != nil {
-			Logger(err.Error(), SYSTEM, ERROR)
-			tx.Rollback()
-		} else {
-			tx.Commit()
-			DBHandler.ResetIncrement("login_token", "user_roles", "sessions", "users")
-		}
+		deleteUserToken := DBHandler.SetupExec(`DELETE FROM login_token WHERE uid = ?`, uid)
+		deleteUserRoles := DBHandler.SetupExec(`DELETE FROM user_roles WHERE uid = ?`, uid)
+		deleteSessions := DBHandler.SetupExec(`DELETE FROM sessions WHERE uid = ?`, uid)
+		deleteUser := DBHandler.SetupExec(`DELETE FROM users WHERE uid = ?`, uid)
+		DBHandler.Exec(deleteUserToken, deleteUserRoles, deleteSessions, deleteUser)
 	} else {
 		Logger("CouldNotRemoveUser::DoesNotExist", SYSTEM, ERROR)
 	}

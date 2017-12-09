@@ -11,6 +11,11 @@ import (
 	"strings"
 )
 
+const (
+	// MODULEOPT is the module name constant for options
+	MODULEOPT = "Options"
+)
+
 // OptionsHandler global variable for options struct
 var OptionsHandler *Options
 
@@ -30,7 +35,7 @@ func initOption(name string) *Option {
 func (opt *Option) GetValues() map[string]interface{} {
 	exists, cacheMap := CacheHandler.Cache(opt)
 	if !exists {
-		Logger("CouldNotLoadCacheOptions::"+opt.name, "Config", ERROR)
+		Logger("CouldNotLoadCacheOptions::"+opt.name, PACKAGE+"."+MODULEOPT+".GetValues", ERROR)
 	}
 	return cacheMap
 }
@@ -76,7 +81,7 @@ func InitOptions() {
 		Logger(err.Error(), "Config", ERROR)
 	}
 	for _, file := range dir {
-		Logger("LoadingOptionsFile::"+file.Name(), "Config", MSG)
+		Logger("LoadingOptionsFile::"+file.Name(), PACKAGE+"."+MODULEOPT+".InitOptions", MSG)
 		newOption := initOption(file.Name())
 		opt.options[file.Name()] = newOption
 	}
@@ -105,11 +110,11 @@ func getOptions(module string) map[string]interface{} {
 		strings.ToLower(module) + "/settings.json"
 	raw, err := ioutil.ReadFile(optionsMap["Path"].(string))
 	if err != nil {
-		Logger(err.Error(), "Config", ERROR)
+		Logger(err.Error(), PACKAGE+"."+MODULEOPT+".getOptions", ERROR)
 	}
 	err = json.Unmarshal(raw, &optionsMap)
 	if err != nil {
-		Logger(err.Error(), "Config", ERROR)
+		Logger(err.Error(), PACKAGE+"."+MODULEOPT+".getOptions", ERROR)
 	}
 	return optionsMap
 }

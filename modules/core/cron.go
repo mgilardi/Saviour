@@ -35,11 +35,15 @@ func InitCron() {
 	CronHandler = &cron
 }
 
-// @TODO Commment
+// startInterval creates two goroutines one for running the time interval and initializing
+// the Push function and one to allow the changing of the time interval. By providing the
+// loaded interval when the cron has been completed.
 func (cron *Cron) startInterval() {
 	chanIntervalReset := make(chan bool)
 
-	// "go func" Creates a time interval thread
+	// "go func" creates a goroutine that gets the time interval from the interval controller thread
+	// it will sleep the time interval provided by the controller then run the push of loaded cron
+	// jobs when completed then send the interval reset signal to the interval controller thread
 	go func() {
 		for {
 			time.Sleep(<-cron.intervalChan)
@@ -49,7 +53,12 @@ func (cron *Cron) startInterval() {
 		}
 	}()
 
-	// "go func" Creates a time interval thread
+	// "go func" Creates a new thread for the time interval controller loads the initial interval
+	// the was loaded from options and sends the interval to the main cron thread. A for loop with a
+	// select statement runs through the channels if it recieves a interval reset signal it will
+	// return the currently loaded interval to the main cron thread, if it recieves a signal from the
+	// new interal channel if will hold that as the current interval to be sent to the main cron
+	// thread on the next completed cron thread
 	go func() {
 		interval := <-cron.intervalSet
 		cron.intervalChan <- interval
@@ -64,6 +73,8 @@ func (cron *Cron) startInterval() {
 			}
 		}
 	}()
+
+	// Starts the controller thread by sending the initial interval
 	cron.intervalSet <- cron.interval
 }
 
@@ -83,7 +94,7 @@ func (cron *Cron) Interval(interval int) {
 	cron.intervalSet <- time.Duration(interval) * time.Second
 }
 
-// BatchWork will run all jobs located in an array of functions
+// BatchWork will run all jobs located in an map of functions
 func BatchWork(jobs map[int]func()) {
 	Logger("Batch_Jobs_Recieved::"+strconv.Itoa(len(jobs)), "Cron", MSG)
 	for _, job := range jobs {
@@ -91,7 +102,7 @@ func BatchWork(jobs map[int]func()) {
 	}
 }
 
-// Work with run a worker on a go routine
+// Work with run a worker on a go routine then waits for the job to be completed
 func Work(job func()) {
 	go func() {
 		done := make(chan bool)
@@ -101,7 +112,7 @@ func Work(job func()) {
 	}()
 }
 
-// Run the current job and return done on channel
+// Run the current job and return done on channel to the Work function
 func Run(done chan<- bool, job func()) {
 	job()
 	done <- true

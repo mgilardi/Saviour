@@ -8,8 +8,19 @@ import (
 	"os"
 )
 
+// System Message Constants
+const (
+	MSG       = "Saviour"
+	WARN      = "WARN"
+	ERROR     = "ERROR"
+	FATAL     = "FATAL"
+	MODULELOG = "Logger"
+)
+
+var logHandler []log
+
 type log interface {
-	SetError(string, string, int)
+	SetError(string, string, string)
 	CheckLevel() bool
 	Enabled() bool
 	Write()
@@ -23,15 +34,15 @@ type debug struct {
 	currentLevel int
 }
 
-// System Message Constants
-const (
-	MSG   = 0
-	WARN  = 1
-	ERROR = 2
-	FATAL = 3
-)
-
-var logHandler []log
+// Logger struct contains database
+type logger struct {
+	logType      string
+	logModule    string
+	logMsg       string
+	currentLevel int
+	logLevel     int
+	isOn         bool
+}
 
 // InitDebug initializes the debug struct
 func InitDebug(on bool) {
@@ -41,47 +52,28 @@ func InitDebug(on bool) {
 }
 
 // @TODO Remove case statement
-func (dbg *debug) SetError(message string, module string, typ int) {
+func (dbg *debug) SetError(message string, module string, typ string) {
 	switch typ {
-	case 0:
-		dbg.Sys(message, module)
-	case 1:
-		dbg.Warn(message, module)
-	case 2:
-		dbg.Err(message, module)
-	case 3:
-		dbg.Fatal(message, module)
-		os.Exit(1)
+	case MSG:
+		dbg.currentError = typ + "::" + module + "::" + message
+		dbg.currentLevel = 3
+		handleLog(dbg)
+	case WARN:
+		dbg.currentError = typ + "::" + module + "::" + message
+		dbg.currentLevel = 2
+		handleLog(dbg)
+	case ERROR:
+		dbg.currentError = typ + "::" + module + "::" + message
+		dbg.currentLevel = 1
+		handleLog(dbg)
+	case FATAL:
+		dbg.isOn = true
+		dbg.currentError = typ + "::" + module + "::" + message
+		dbg.currentLevel = 0
+		handleLog(dbg)
+	default:
+		Logger("UnknownErrorType", PACKAGE+"."+MODULELOG+".SetErrorDebug", ERROR)
 	}
-}
-
-// Sys outputs system messsages in the console when dbg is enabled
-func (dbg *debug) Sys(message string, module string) {
-	dbg.currentError = "Saviour::" + module + "::" + message
-	dbg.currentLevel = 3
-	handleLog(dbg)
-}
-
-// Warn writes warning messages
-func (dbg *debug) Warn(err string, module string) {
-	dbg.currentError = "Warn::" + module + "::" + err
-	dbg.currentLevel = 2
-	handleLog(dbg)
-}
-
-// Err writes error messages
-func (dbg *debug) Err(err string, module string) {
-	dbg.currentError = "Error::" + module + "::" + err
-	dbg.currentLevel = 1
-	handleLog(dbg)
-}
-
-// Fatal Writes Fatal Messages
-func (dbg *debug) Fatal(err string, module string) {
-	dbg.currentError = "Fatal::" + module + "::" + err
-	dbg.currentLevel = 0
-	dbg.isOn = true
-	handleLog(dbg)
 }
 
 // CheckLevel checks that the current message is above the current log level
@@ -98,16 +90,9 @@ func (dbg *debug) Enabled() bool {
 // Write writes current system message to the console
 func (dbg *debug) Write() {
 	fmt.Println(dbg.currentError)
-}
-
-// Logger struct contains database
-type logger struct {
-	logType      string
-	logModule    string
-	logMsg       string
-	currentLevel int
-	logLevel     int
-	isOn         bool
+	if dbg.currentLevel == 0 {
+		os.Exit(1)
+	}
 }
 
 // InitLogger constructs logger type
@@ -118,53 +103,35 @@ func InitLogger() {
 	logHandler = append(logHandler, &newLogDB)
 }
 
-func (logger *logger) SetError(message string, module string, typ int) {
+func (logger *logger) SetError(message string, module string, typ string) {
 	switch typ {
-	case 0:
-		logger.Sys(message, module)
-	case 1:
-		logger.Warn(message, module)
-	case 2:
-		logger.Err(message, module)
-	case 3:
-		logger.Fatal(message, module)
+	case MSG:
+		logger.logType = typ
+		logger.logModule = module
+		logger.logMsg = message
+		logger.currentLevel = 3
+		handleLog(logger)
+	case WARN:
+		logger.logType = typ
+		logger.logModule = module
+		logger.logMsg = message
+		logger.currentLevel = 2
+		handleLog(logger)
+	case ERROR:
+		logger.logType = typ
+		logger.logModule = module
+		logger.logMsg = message
+		logger.currentLevel = 1
+		handleLog(logger)
+	case FATAL:
+		logger.logType = typ
+		logger.logModule = module
+		logger.logMsg = message
+		logger.currentLevel = 0
+		handleLog(logger)
+	default:
+		Logger("UnknownErrorType", PACKAGE+"."+MODULELOG+".SetErrorLogger", ERROR)
 	}
-}
-
-// Sys writes status message
-func (logger *logger) Sys(message string, module string) {
-	logger.logType = "Status"
-	logger.logModule = module
-	logger.logMsg = message
-	logger.currentLevel = 3
-	handleLog(logger)
-}
-
-// Warn writes warning messages
-func (logger *logger) Warn(err string, module string) {
-	logger.logType = "Warn"
-	logger.logModule = module
-	logger.logMsg = err
-	logger.currentLevel = 2
-	handleLog(logger)
-}
-
-// Err writes error messages
-func (logger *logger) Err(err string, module string) {
-	logger.logType = "Error"
-	logger.logModule = module
-	logger.logMsg = err
-	logger.currentLevel = 1
-	handleLog(logger)
-}
-
-// Fatal Writes Fatal Messages
-func (logger *logger) Fatal(err string, module string) {
-	logger.logType = "Fatal"
-	logger.logModule = module
-	logger.logMsg = err
-	logger.currentLevel = 0
-	handleLog(logger)
 }
 
 // CheckLevel checks to make sure current message is above the log level
@@ -182,16 +149,14 @@ func (logger *logger) Enabled() bool {
 
 // WriteLog writes log entry into the database
 func (logger *logger) Write() {
-	_, err := DBHandler.sql.Exec(
-		`INSERT INTO logger (type, module, message) VALUES (?, ?, ?)`,
-		logger.logType, logger.logModule, logger.logMsg)
-	if err != nil {
-		Logger(err.Error(), "Logger", ERROR)
-	}
+	writeLog := DBHandler.SetupExec(
+		`INSERT INTO logger (type, module, message) `+
+			`VALUES (?, ?, ?)`, logger.logType, logger.logModule, logger.logMsg)
+	DBHandler.Exec(writeLog)
 }
 
 // Logger Global input variable for logger module
-func Logger(msg string, module string, typ int) {
+func Logger(msg string, module string, typ string) {
 	for _, logData := range logHandler {
 		logData.SetError(msg, module, typ)
 	}

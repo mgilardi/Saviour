@@ -49,10 +49,8 @@ func InitAccess() {
 // CreateUserRole creates a new user role named with input
 func (access *Access) CreateUserRole(roleName string) {
 	Logger("CreatingUserRole", ACCESS, MSG)
-	_, err := DBHandler.sql.Exec(`INSERT INTO role (name) VALUES (?)`, roleName)
-	if err != nil {
-		Logger(err.Error(), ACCESS, ERROR)
-	}
+	createNewRole := DBHandler.SetupExec(`INSERT INTO role (name) VALUES (?)`, roleName)
+	DBHandler.Exec(createNewRole)
 	access.reloadPerm()
 	access.updateDB()
 }
@@ -61,18 +59,12 @@ func (access *Access) CreateUserRole(roleName string) {
 func (access *Access) RemoveUserRole(roleName string) {
 	Logger("RemovingUserRole", ACCESS, MSG)
 	roleMap := access.genRoleNameMap()
-	tx, err := DBHandler.sql.Begin()
-	_, err = tx.Exec(`DELETE FROM role WHERE name = ?`, roleName)
-	_, err = tx.Exec(`DELETE FROM user_roles WHERE rid = ?`, roleMap[roleName])
-	if err != nil {
-		tx.Rollback()
-		Logger(err.Error(), ACCESS, ERROR)
-	} else {
-		tx.Commit()
-		access.clearDB()
-		access.reloadPerm()
-		access.updateDB()
-	}
+	deleteRole := DBHandler.SetupExec(`DELETE FROM role WHERE name = ?`, roleName)
+	deleteUserRoles := DBHandler.SetupExec(`DELETE FROM user_roles WHERE rid = ?`, roleMap[roleName])
+	DBHandler.Exec(deleteRole, deleteUserRoles)
+	access.clearDB()
+	access.reloadPerm()
+	access.updateDB()
 }
 
 // GetUserRoles returns a map containing the user roles and there role id
@@ -215,23 +207,19 @@ func (access *Access) updateDB() {
 			// @TODO Checkout the MySQL REPLACE statement.
 			case err == sql.ErrNoRows:
 				Logger("CreatingNewEntry", ACCESS, MSG)
-				_, err = DBHandler.sql.Exec(
+				writeRolePermissions := DBHandler.SetupExec(
 					`INSERT INTO user_permissions (rid, module, allowed) `+
 						`VALUES (?, ?, ?)`, roleMap[usrTyp], name, perm)
-				if err != nil {
-					Logger(err.Error(), ACCESS, ERROR)
-				}
+				DBHandler.Exec(writeRolePermissions)
 			case err != nil:
 				Logger(err.Error(), ACCESS, ERROR)
 			case allowed.Valid && allowed.Bool == perm:
 				// Ignore
 			default:
-				_, err = DBHandler.sql.Exec(
+				updateRolePermissions := DBHandler.SetupExec(
 					`UPDATE user_permissions SET allowed = ? `+
 						`WHERE rid = ? AND module =?`, perm, roleMap[usrTyp], name)
-				if err != nil {
-					Logger(err.Error(), ACCESS, ERROR)
-				}
+				DBHandler.Exec(updateRolePermissions)
 			}
 		}
 	}
@@ -239,8 +227,6 @@ func (access *Access) updateDB() {
 
 func (access *Access) clearDB() {
 	Logger("ClearingAccessDB", ACCESS, MSG)
-	_, err := DBHandler.sql.Exec(`TRUNCATE TABLE user_permissions`)
-	if err != nil {
-		Logger(err.Error(), ACCESS, MSG)
-	}
+	clearAccessTable := DBHandler.SetupExec(`TRUNCATE TABLE user_permissions`)
+	DBHandler.Exec(clearAccessTable)
 }

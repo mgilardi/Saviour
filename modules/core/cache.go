@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+const (
+	// MODULECACHE contains the name for the modules cache
+	MODULECACHE = "Cache"
+)
+
 // CacheHandler Global Access
 var CacheHandler *Cache
 
@@ -48,18 +53,18 @@ func InitCache() {
 func (cache *Cache) Cache(obj CacheObj) (bool, map[string]interface{}) {
 	var exists bool
 	var cacheMap map[string]interface{}
-	Logger("CheckingMemCache", "Cache", MSG)
+	Logger("CheckingMemCache", PACKAGE+"."+MODULECACHE+".Cache", MSG)
 	exists, cacheMap = cache.GetMemCache(obj)
 	if exists {
-		Logger("ReceivedMemCache", "Cache", MSG)
+		Logger("ReceivedMemCache", PACKAGE+"."+MODULECACHE+".Cache", MSG)
 		return exists, cacheMap
 	}
-	Logger("CheckingDBCache", "Cache", MSG)
+	Logger("CheckingDBCache", PACKAGE+"."+MODULECACHE+".Cache", MSG)
 	exists, cacheMap = cache.GetCache(obj)
 	if !exists {
-		Logger("CouldNotLoadCacheMap", "Cache", ERROR)
+		Logger("CouldNotLoadCacheMap", PACKAGE+"."+MODULECACHE+".Cache", ERROR)
 	}
-	Logger("DBCacheFound", "Cache", MSG)
+	Logger("DBCacheFound", PACKAGE+"."+MODULECACHE+".Cache", MSG)
 	return exists, cacheMap
 }
 
@@ -74,13 +79,13 @@ func (cache *Cache) Update(obj CacheObj) {
 func (cache *Cache) GetMemCache(obj CacheObj) (bool, map[string]interface{}) {
 	value, exists := cache.memCache[obj.CacheID()]
 	if !exists {
-		Logger("CacheMemEntryNotFound::Creating", "Cache", MSG)
+		Logger("CacheMemEntryNotFound::Creating", PACKAGE+"."+MODULECACHE+".GetMemCache", MSG)
 		cache.SetMemCache(obj)
 	} else {
-		Logger("MemoryCacheEntryExists", "Cache", MSG)
+		Logger("MemoryCacheEntryExists", PACKAGE+"."+MODULECACHE+".GetMemCache", MSG)
 		if time.Now().Unix() > value["expires"].(int64) {
 			exists = false
-			Logger("CacheMemEntryExpired::Creating", "Cache", MSG)
+			Logger("CacheMemEntryExpired::Creating", PACKAGE+"."+MODULECACHE+".GetMemCache", MSG)
 			cache.SetMemCache(obj)
 		}
 	}
@@ -97,12 +102,12 @@ func (cache *Cache) SetMemCache(obj CacheObj) {
 
 // CheckMemCache removes expired entrys from the memory cache
 func (cache *Cache) CheckMemCache() {
-	Logger("CheckMemCacheForExpired", "Cache", MSG)
+	Logger("CheckMemCacheForExpired", PACKAGE+"."+MODULECACHE+".CheckMemCache", MSG)
 	for key, value := range cache.memCache {
 		Logger("MemCacheEntry::"+key+"::Expires::"+strconv.FormatInt(value["expires"].(int64), 10)+
-			"::TimeNow::"+strconv.FormatInt(time.Now().Unix(), 10), "Cache", MSG)
+			"::TimeNow::"+strconv.FormatInt(time.Now().Unix(), 10), PACKAGE+"."+MODULECACHE+".CheckMemCache", MSG)
 		if time.Now().Unix() > value["expires"].(int64) {
-			Logger("RemovingExpired::"+key, "Cache", MSG)
+			Logger("RemovingExpired::"+key, PACKAGE+"."+MODULECACHE+".CheckMemCache", MSG)
 			delete(cache.memCache, key)
 		}
 	}
@@ -121,10 +126,8 @@ func (cache *Cache) DeleteMemCache(obj CacheObj) {
 // DeleteDBCache deletes cache entrys for refresh
 func (cache *Cache) DeleteDBCache(obj CacheObj) {
 	cid := obj.CacheID()
-	_, err := DBHandler.sql.Exec(`DELETE FROM cache WHERE cid = ?`, cid)
-	if err != nil {
-		Logger(err.Error(), "Cache", ERROR)
-	}
+	deleteFromCache := DBHandler.SetupExec(`DELETE FROM cache WHERE cid = ?`, cid)
+	DBHandler.Exec(deleteFromCache)
 }
 
 // GetCache will return the cache map if the map is not in the cache it will
@@ -146,20 +149,19 @@ func (cache *Cache) GetCache(obj CacheObj) (bool, map[string]interface{}) {
 	switch {
 	case err == sql.ErrNoRows:
 		// Cache Row Not found
-		Logger("CacheDBEntryNotFound::Creating", "Cache", MSG)
+		Logger("CacheDBEntryNotFound::Creating", PACKAGE+"."+MODULECACHE+".GetCache", MSG)
 		cache.SetCache(obj)
 		DBHandler.sql.QueryRow(
 			`SELECT data, expires FROM cache `+
 				`WHERE cid = ?`, cid).Scan(&dbData, &expires)
 		exists = true
 	case err != nil:
-		Logger(err.Error(), "Cache", ERROR)
-		// @TODO Create expired cache entry during test
+		Logger(err.Error(), PACKAGE+"."+MODULECACHE+".GetCache", ERROR)
 	case expires.Valid:
 		if !(expires.Int64 < time.Now().Unix()) {
 			exists = true
 		} else {
-			Logger("CacheDBEntryExpired::Creating", "Cache", MSG)
+			Logger("CacheDBEntryExpired::Creating", PACKAGE+"."+MODULECACHE+".GetCache", MSG)
 			cache.SetCache(obj)
 			DBHandler.sql.QueryRow(
 				`SELECT data, expires FROM cache `+
@@ -175,11 +177,11 @@ func (cache *Cache) GetCache(obj CacheObj) (bool, map[string]interface{}) {
 
 		_, err = buf.Write(dbData)
 		if err != nil {
-			Logger(err.Error(), "Cache", ERROR)
+			Logger(err.Error(), PACKAGE+"."+MODULECACHE+".GetCache", ERROR)
 		}
 		err := decoder.Decode(&cacheData)
 		if err != nil {
-			Logger(err.Error(), "Cache", ERROR)
+			Logger(err.Error(), PACKAGE+"."+MODULECACHE+".GetCache", ERROR)
 		}
 	}
 	return exists, cacheData.DataMap
@@ -197,26 +199,21 @@ func (cache *Cache) SetCache(obj CacheObj) {
 	encoder := gob.NewEncoder(&buf)
 	err = encoder.Encode(&cacheData)
 	if err != nil {
-		Logger(err.Error(), "Cache", ERROR)
+		Logger(err.Error(), PACKAGE+"."+MODULECACHE+".SetCache", ERROR)
 	}
 	expTime = time.Now().Add(cache.dbExpireTime).Unix()
-	Logger("WritingCache::"+cid+":"+strconv.FormatInt(expTime, 10), "Cache", MSG)
-	_, err = DBHandler.sql.Exec(
+	Logger("WritingCache::"+cid+":"+strconv.FormatInt(expTime, 10), PACKAGE+"."+MODULECACHE+".SetCache", MSG)
+	insertCache := DBHandler.SetupExec(
 		`INSERT INTO cache (cid, data, expires) `+
 			`VALUES (?, ?, ?) ON DUPLICATE KEY `+
 			`UPDATE data = ?, expires = ?`, cid, buf.Bytes(), expTime, buf.Bytes(), expTime)
-	if err != nil {
-		Logger(err.Error(), "Cache", ERROR)
-	}
+	DBHandler.Exec(insertCache)
 }
 
 // ClearCache clears all records in cache table
 func (cache *Cache) ClearCache() {
-	_, err := DBHandler.sql.Exec(`TRUNCATE TABLE cache`)
-	if err != nil {
-		Logger(err.Error(), "Cache", ERROR)
-	}
-	DBHandler.ResetIncrement("cache")
+	truncateTable := DBHandler.SetupExec(`TRUNCATE TABLE cache`)
+	DBHandler.Exec(truncateTable)
 }
 
 // CheckCache iterates through cache records checks if the record is expired
@@ -226,25 +223,26 @@ func (cache *Cache) CheckCache() {
 	var cid string
 	var expires sql.NullInt64
 	rows, err := DBHandler.sql.Query(`SELECT cid, expires FROM cache`)
-	Logger("CheckDBCacheForExpired", "Cache", MSG)
+	Logger("CheckDBCacheForExpired", PACKAGE+"."+MODULECACHE+".CheckCache", MSG)
 	switch {
 	case err == sql.ErrNoRows:
-		Logger("CacheTableEmpty", "Cache", MSG)
+		Logger("CacheTableEmpty", PACKAGE+"."+MODULECACHE+".CheckCache", MSG)
 	case err != nil && err.Error() != "EOF":
-		Logger(err.Error(), "Cache", ERROR)
+		Logger(err.Error(), PACKAGE+"."+MODULECACHE+".CheckCache", ERROR)
 	default:
 		for rows.Next() {
 			rows.Scan(&cid, &expires)
 			Logger("DBCacheEntry::"+cid+"::Expires::"+strconv.FormatInt(expires.Int64, 10)+
-				"::TimeNow::"+strconv.FormatInt(time.Now().Unix(), 10), "Cache", MSG)
+				"::TimeNow::"+strconv.FormatInt(time.Now().Unix(), 10), PACKAGE+"."+MODULECACHE+".CheckCache", MSG)
 			if expires.Valid && expires.Int64 < time.Now().Unix() {
-				Logger("RemovingExpired::"+cid, "Cache", MSG)
-				_, err := DBHandler.sql.Exec(`DELETE FROM cache WHERE cid = ?`, cid)
+				Logger("RemovingExpired::"+cid, PACKAGE+"."+MODULECACHE+".CheckCache", MSG)
 				if err != nil {
-					Logger(err.Error(), "Cache", ERROR)
+					Logger(err.Error(), PACKAGE+"."+MODULECACHE+".CheckCache", ERROR)
+				} else {
+					deleteFromCache := DBHandler.SetupExec(`DELETE FROM cache WHERE cid = ?`, cid)
+					DBHandler.Exec(deleteFromCache)
 				}
 			}
 		}
-		DBHandler.ResetIncrement("cache")
 	}
 }
