@@ -38,14 +38,12 @@ type Cache struct {
 func InitCache() {
 	var cache Cache
 	cache.memCache = make(map[string]map[string]interface{})
-	options := OptionsHandler.GetOptions("core")
+	options := OptionsHandler.GetOption("Core")
 	cache.dbExpireTime = time.Duration(int(options["DBExpireTime"].(float64))) * time.Minute
 	cache.memExpireTime = time.Duration(int(options["MemExpireTime"].(float64))) * time.Minute
 	CacheHandler = &cache
-	OptionsHandler.CacheLoaded()
 	CronHandler.Add(func() {
 		CacheHandler.CheckCache()
-		CacheHandler.CheckMemCache()
 	})
 }
 
@@ -53,12 +51,6 @@ func InitCache() {
 func (cache *Cache) Cache(obj CacheObj) (bool, map[string]interface{}) {
 	var exists bool
 	var cacheMap map[string]interface{}
-	Logger("CheckingMemCache", PACKAGE+"."+MODULECACHE+".Cache", MSG)
-	exists, cacheMap = cache.GetMemCache(obj)
-	if exists {
-		Logger("ReceivedMemCache", PACKAGE+"."+MODULECACHE+".Cache", MSG)
-		return exists, cacheMap
-	}
 	Logger("CheckingDBCache", PACKAGE+"."+MODULECACHE+".Cache", MSG)
 	exists, cacheMap = cache.GetCache(obj)
 	if !exists {
@@ -70,57 +62,7 @@ func (cache *Cache) Cache(obj CacheObj) (bool, map[string]interface{}) {
 
 // Update will update the cache objects
 func (cache *Cache) Update(obj CacheObj) {
-	cache.DeleteMemCache(obj)
 	cache.DeleteDBCache(obj)
-}
-
-// GetMemCache checks for memory cache and returns value if exists if not
-// it will load a new entry into the memory cache
-func (cache *Cache) GetMemCache(obj CacheObj) (bool, map[string]interface{}) {
-	value, exists := cache.memCache[obj.CacheID()]
-	if !exists {
-		Logger("CacheMemEntryNotFound::Creating", PACKAGE+"."+MODULECACHE+".GetMemCache", MSG)
-		cache.SetMemCache(obj)
-	} else {
-		Logger("MemoryCacheEntryExists", PACKAGE+"."+MODULECACHE+".GetMemCache", MSG)
-		if time.Now().Unix() > value["expires"].(int64) {
-			exists = false
-			Logger("CacheMemEntryExpired::Creating", PACKAGE+"."+MODULECACHE+".GetMemCache", MSG)
-			cache.SetMemCache(obj)
-		}
-	}
-	return exists, value
-}
-
-// SetMemCache adds a new entry into the memory cache
-func (cache *Cache) SetMemCache(obj CacheObj) {
-	cid, cacheMap := obj.Cache()
-	cacheMap["expires"] = time.Now().Add(cache.memExpireTime).Unix()
-	cache.memCache[cid] = cacheMap
-
-}
-
-// CheckMemCache removes expired entrys from the memory cache
-func (cache *Cache) CheckMemCache() {
-	Logger("CheckMemCacheForExpired", PACKAGE+"."+MODULECACHE+".CheckMemCache", MSG)
-	for key, value := range cache.memCache {
-		Logger("MemCacheEntry::"+key+"::Expires::"+strconv.FormatInt(value["expires"].(int64), 10)+
-			"::TimeNow::"+strconv.FormatInt(time.Now().Unix(), 10), PACKAGE+"."+MODULECACHE+".CheckMemCache", MSG)
-		if time.Now().Unix() > value["expires"].(int64) {
-			Logger("RemovingExpired::"+key, PACKAGE+"."+MODULECACHE+".CheckMemCache", MSG)
-			delete(cache.memCache, key)
-		}
-	}
-}
-
-// DeleteMemCache deletes cache entrys for refresh
-func (cache *Cache) DeleteMemCache(obj CacheObj) {
-	cid := obj.CacheID()
-	for k := range cache.memCache {
-		if cid == k {
-			delete(cache.memCache, k)
-		}
-	}
 }
 
 // DeleteDBCache deletes cache entrys for refresh
@@ -140,7 +82,6 @@ func (cache *Cache) GetCache(obj CacheObj) (bool, map[string]interface{}) {
 	var buf bytes.Buffer
 	var cid string
 	var err error
-
 	exists = false
 	cid = obj.CacheID()
 	err = DBHandler.sql.QueryRow(

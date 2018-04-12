@@ -43,7 +43,6 @@ func InitAccess() {
 	access.accessMap = make(map[string]*AccessObj)
 	access.loadDB()
 	AccessHandler = &access
-
 }
 
 // CreateUserRole creates a new user role named with input

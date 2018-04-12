@@ -12,5 +12,6 @@
   "Pass": "Wlzv1iwFSV0W6cL4",
   "__comment": "Cache Entry Expire Time",
   "DBExpireTime": 15,
-  "MemExpireTime": 5
+  "MemExpireTime": 5,
+  "Location": "/home/kozuka/GoStuff/src/Saviour"
 }

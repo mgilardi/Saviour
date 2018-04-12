@@ -36,8 +36,8 @@ func (t Test) CacheID() string {
 }
 
 func TestCache_InitAccess(t *testing.T) {
-	InitDebug(true)
 	InitOptions()
+	InitDebug(true)
 	InitCron()
 	InitDatabase()
 	InitLogger()

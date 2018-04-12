@@ -33,7 +33,7 @@ func InitDatabase() {
 	var err error
 	var user, pass string
 	Logger("Starting", PACKAGE+"."+MODULEDB+".InitDatabase", MSG)
-	options := OptionsHandler.GetOptions("Core")
+	options := OptionsHandler.GetOption("Core")
 	if options["User"] == nil {
 		Logger(err.Error(), PACKAGE+"."+MODULEDB+".InitDatabase", FATAL)
 	}

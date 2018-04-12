@@ -6,8 +6,10 @@ package core
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"os"
+	"path"
 	"strings"
 )
 
@@ -16,113 +18,91 @@ const (
 	MODULEOPT = "Options"
 )
 
-// OptionsHandler global variable for options struct
-var OptionsHandler *Options
+var OptionsHandler Options
 
-// Option Struct
-type Option struct {
-	name string
-}
-
-// Create a new option object
-func initOption(name string) *Option {
-	var option Option
-	option.name = name
-	return &option
-}
-
-// GetValues for the option object from cache
-func (opt *Option) GetValues() map[string]interface{} {
-	exists, cacheMap := CacheHandler.Cache(opt)
-	if !exists {
-		Logger("CouldNotLoadCacheOptions::"+opt.name, PACKAGE+"."+MODULEOPT+".GetValues", ERROR)
-	}
-	return cacheMap
-}
-
-// UpdateCache updates the cache entry for this option object
-func (opt *Option) UpdateCache() {
-	CacheHandler.Update(opt)
-}
-
-// Cache This function is triggered by the cache module
-func (opt *Option) Cache() (string, map[string]interface{}) {
-	cacheID := opt.name + ":option"
-	values := opt.loadValues()
-	return cacheID, values
-}
-
-// This loads the values for the options object from disk
-func (opt *Option) loadValues() map[string]interface{} {
-	options := getOptions(opt.name)
-	return options
-}
-
-// CacheID This is a helper function for the cache module
-func (opt *Option) CacheID() string {
-	cacheID := opt.name + ":option"
-	return cacheID
-}
-
-// Options struct
 type Options struct {
-	options     map[string]*Option
-	cacheLoaded bool
+	configPath    string
+	loadedOptions map[string]map[string]interface{}
 }
 
-// InitOptions initializes the options struct
-// @TODO Get path dynamically instead of hard coding: /src/Saviour/modules
+// Load Options Struct
 func InitOptions() {
 	var opt Options
-	opt.cacheLoaded = false
-	opt.options = make(map[string]*Option)
-	dir, err := ioutil.ReadDir(os.Getenv("GOPATH") + "/src/Saviour/modules")
+	var err error
+	// Find the Config Path
+	opt.configPath, err = FindPath("config")
 	if err != nil {
-		Logger(err.Error(), "Config", ERROR)
+		Logger(err.Error(), PACKAGE+"."+MODULEOPT+".InitOptions", FATAL)
 	}
-	for _, file := range dir {
-		Logger("LoadingOptionsFile::"+file.Name(), PACKAGE+"."+MODULEOPT+".InitOptions", MSG)
-		newOption := initOption(file.Name())
-		opt.options[file.Name()] = newOption
-	}
-	OptionsHandler = &opt
+	// Initialize Config Cache Map
+	opt.loadedOptions = make(map[string]map[string]interface{})
+	OptionsHandler = opt
 }
 
-// GetOptions will return the options map
-func (opts *Options) GetOptions(module string) map[string]interface{} {
-	if opts.cacheLoaded == false {
-		return getOptions(module)
+// GetOption returns either loads the config file or returns the already loaded config
+func (opt Options) GetOption(module string) map[string]interface{} {
+	optionMap, exists := opt.loadedOptions[module]
+	if !exists {
+		optionMap = opt.loadOption(module)
 	}
-	return opts.options[module].GetValues()
-}
-
-// CacheLoaded is the switch from loading from disk to loading from cache
-func (opts *Options) CacheLoaded() {
-	opts.cacheLoaded = true
-}
-
-// GetOptions returns an map with the loaded options from the json settings file
-// @TODO Find the Go equivellent of: PHP's __FUNCTION__ . __FILE__ . __LINE__
-func getOptions(module string) map[string]interface{} {
-	var optionsMap map[string]interface{}
-	optionsMap = make(map[string]interface{})
-	optionsMap["Path"] = os.Getenv("GOPATH") + "/src/Saviour/modules/" +
-		strings.ToLower(module) + "/settings.json"
-	raw, err := ioutil.ReadFile(optionsMap["Path"].(string))
-	if err != nil {
-		Logger(err.Error(), PACKAGE+"."+MODULEOPT+".getOptions", ERROR)
-	}
-	err = json.Unmarshal(raw, &optionsMap)
-	if err != nil {
-		Logger(err.Error(), PACKAGE+"."+MODULEOPT+".getOptions", ERROR)
-	}
-	return optionsMap
+	return optionMap
 }
 
 // FindValue returns a value of a module
-func FindValue(module string, key string) interface{} {
+func (opt Options) FindValue(module string, key string) interface{} {
 	var output interface{}
-	optionsMap := getOptions(module)
+	optionsMap := opt.GetOption(module)
 	output = optionsMap[key]
 	return output
+}
+
+// loadOption will read the json config file and load
+// it into the config cache and return it to the GetOption function
+func (opt Options) loadOption(module string) map[string]interface{} {
+	var optionMap map[string]interface{}
+	optionMap = make(map[string]interface{})
+	optionMap["Path"] = opt.configPath + strings.ToLower(module) + ".json"
+	raw, err := ioutil.ReadFile(optionMap["Path"].(string))
+	if err != nil {
+		Logger(err.Error(), PACKAGE+"."+MODULEOPT+".loadOption", ERROR)
+	}
+	err = json.Unmarshal(raw, &optionMap)
+	if err != nil {
+		Logger(err.Error(), PACKAGE+"."+MODULEOPT+".loadOption", ERROR)
+	}
+	opt.loadedOptions[module] = optionMap
+	return optionMap
+}
+
+// FindPath will return the path to any subdirectory of the Saviour folder thats
+// within the path of the working directory
+func FindPath(searchPath string) (string, error) {
+	var assembledPath []string
+	Logger("SearchForConfig", PACKAGE+"."+MODULEOPT+".FindConfig", MSG)
+	wd, err := os.Getwd()
+	// Split the working directory path
+	paths := strings.Split(wd, string(os.PathSeparator))
+	// Iterate over the array and add the elements until you find the Saviour directory
+	for _, folder := range paths {
+		assembledPath = append(assembledPath, folder)
+		// If Saviour subdirectory is found iterate that directory for the specified search path
+		if folder == "Saviour" {
+			Logger("ConfigFoundSaviourFolder", PACKAGE+"."+MODULEOPT+".FindConfig", MSG)
+			Logger(path.Join(assembledPath...), PACKAGE+"."+MODULEOPT+".FindConfig", MSG)
+			dirs, _ := ioutil.ReadDir("/" + path.Join(assembledPath...))
+			if err != nil {
+				Logger("CouldNotOpenAssembledPath::"+path.Join(assembledPath...), PACKAGE+"."+MODULEOPT+".FindConfig", MSG)
+			}
+			// If searchPath directory is found within the Saviour directory generate a path
+			for _, dir := range dirs {
+				if dir.Name() == searchPath {
+					Logger("ConfigFolderFound", PACKAGE+"."+MODULEOPT+".FindConfig", MSG)
+					assembledPath = append(assembledPath, dir.Name())
+					return "/" + path.Join(assembledPath...) + "/", err
+				}
+			}
+		}
+	}
+	// If the directory is not found return an error
+	return "Error", errors.New("PathFailedToLocateDirectory")
 }

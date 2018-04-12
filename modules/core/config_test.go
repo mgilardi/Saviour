@@ -6,8 +6,7 @@ import (
 )
 
 func TestGetOptions(t *testing.T) {
-	InitOptions()
-	options := OptionsHandler.GetOptions("Core")
+	options := OptionsHandler.GetOption("Core")
 	_, exists := options["Name"]
 	if exists && options["Name"].(string) == "Core" {
 		fmt.Println("Testing::" + options["Name"].(string))
@@ -17,7 +16,7 @@ func TestGetOptions(t *testing.T) {
 }
 
 func TestFindValuePass(t *testing.T) {
-	value := FindValue("Core", "Name")
+	value := OptionsHandler.FindValue("Core", "Name")
 	if value == nil {
 		t.Errorf("ValueIsNull")
 	}

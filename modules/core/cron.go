@@ -29,13 +29,14 @@ func InitCron() {
 	cron.jobs = make(map[int]func())
 	cron.intervalChan = make(chan time.Duration)
 	cron.intervalSet = make(chan time.Duration)
-	options := OptionsHandler.GetOptions("Core")
+	options := OptionsHandler.GetOption("Core")
 	cron.interval = time.Duration(int(options["Interval"].(float64))) * time.Minute
 	cron.startInterval()
 	CronHandler = &cron
 }
 
-// startInterval creates two goroutines one for running the time interval and initializing
+// startInterval
+// creates two goroutines one for running the time interval and initializing
 // the Push function and one to allow the changing of the time interval. By providing the
 // loaded interval when the cron has been completed.
 func (cron *Cron) startInterval() {

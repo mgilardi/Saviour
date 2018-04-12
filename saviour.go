@@ -15,6 +15,7 @@ const (
 
 func main() {
 	debugOn := flag.Bool("dbg", false, "Turns On Debug Messages")
+	inProd := flag.Bool("prod", false, "Turns On Production Mode")
 	flag.Parse()
 	core.InitDebug(*debugOn)
 	core.Logger("DebugEnabled", "", core.MSG)
@@ -25,5 +26,6 @@ func main() {
 	core.InitLogger()
 	core.InitCache()
 	core.InitAccess()
-	core.InitSystem()
+	core.InitSystem(*inProd)
+	core.InitCommand()
 }

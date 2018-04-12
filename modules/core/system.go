@@ -3,15 +3,18 @@ package core
 import (
 	//"config"
 
+	"crypto/tls"
 	"database/sql"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
+	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -22,29 +25,66 @@ const (
 
 // System contains server responses to http requests
 type System struct {
-	hostname, port string
-	conUsers       map[string]*User
+	hostname, port, local string
+	conUsers              map[string]*User
 }
 
 // InitSystem initialize system
-func InitSystem() {
+func InitSystem(inProd bool) {
 	var sys System
 	sys.conUsers = make(map[string]*User)
 	Logger("Starting", "System", MSG)
-	options := OptionsHandler.GetOptions("core")
+	options := OptionsHandler.GetOption("Core")
 	sys.hostname = options["Hostname"].(string)
 	sys.port = options["Port"].(string)
-	sys.handleRequest()
+	sys.local = options["Location"].(string)
+	if !inProd {
+		sys.handleRequest()
+	} else {
+		sys.handleRequestProd()
+	}
 }
 
 // handleRequest sets up router for different webpage requests and redirects them to there function
 // ListenAndServ starts the server listing on port
 func (sys System) handleRequest() {
 	serv := &http.Server{
-		Addr:         ":" + sys.port,
+		Addr:         sys.hostname + ":" + sys.port,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
 		IdleTimeout:  5 * time.Second,
+		TLSConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
+	cert, key := sys.loadTLSCert()
+	servRouter := mux.NewRouter()
+	serv.Handler = servRouter
+	servRouter.HandleFunc("/", sys.indexPage)
+	servRouter.HandleFunc("/login", sys.loginRequest).Methods("POST")
+	servRouter.HandleFunc("/register", sys.createRequest).Methods("POST")
+	servRouter.HandleFunc("/request/logoff", sys.logoffRequest).Methods("POST")
+	servRouter.HandleFunc("/request/password", sys.changePassRequest).Methods("POST")
+
+	Logger(serv.ListenAndServeTLS(cert, key).Error(), "System", ERROR)
+}
+
+func (sys System) handleRequestProd() {
+	certPath, _ := FindPath("cert")
+	certManager := autocert.Manager{
+		Prompt:     autocert.AcceptTOS,
+		Cache:      autocert.DirCache(certPath),
+		HostPolicy: autocert.HostWhitelist("saviour.diyccs.com"),
+	}
+	go http.ListenAndServe(":http", certManager.HTTPHandler(nil))
+	serv := &http.Server{
+		Addr:         sys.hostname + ":" + sys.port,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 5 * time.Second,
+		IdleTimeout:  5 * time.Second,
+		TLSConfig: &tls.Config{
+			GetCertificate: certManager.GetCertificate,
+		},
 	}
 	servRouter := mux.NewRouter()
 	serv.Handler = servRouter
@@ -54,7 +94,14 @@ func (sys System) handleRequest() {
 	servRouter.HandleFunc("/request/logoff", sys.logoffRequest).Methods("POST")
 	servRouter.HandleFunc("/request/password", sys.changePassRequest).Methods("POST")
 
-	Logger(serv.ListenAndServe().Error(), "System", ERROR)
+	Logger(serv.ListenAndServeTLS("", "").Error(), "System", ERROR)
+}
+
+func (sys System) loadTLSCert() (string, string) {
+	dir, _ := os.Getwd()
+	cert := dir + "/cert/server.crt"
+	key := dir + "/cert/server.key"
+	return cert, key
 }
 
 // indexPage handles index page
@@ -78,7 +125,7 @@ func (sys System) createRequest(w http.ResponseWriter, r *http.Request) {
 	default:
 		status = 200
 		Logger("CreatingUser::"+packet.Login.User, SYSTEM, MSG)
-		err := sys.CreateUser(packet.Login.User, packet.Login.Pass, packet.Login.Email)
+		err := CommandHandler.CreateUser(packet.Login.User, packet.Login.Pass, packet.Login.Email)
 		if err != nil {
 			status = 400
 			buf = genDataPacket("", err.Error(), status, packet.Login.User)
@@ -190,8 +237,83 @@ func (sys System) changePassRequest(w http.ResponseWriter, r *http.Request) {
 	w.Write(buf)
 }
 
-// CreateUser creates a new user entry in the database
-func (sys System) CreateUser(name string, pass string, email string) error {
+func (sys System) changeRoleRequest(w http.ResponseWriter, r *http.Request) {
+	var packet DataPacket
+	var buf []byte
+	var valid bool
+	status := 400
+	buf, _ = ioutil.ReadAll(r.Body)
+	valid, packet = loadDataPacket(buf)
+	currentUser, exists := sys.conUsers[packet.Saviour.Username]
+	switch {
+	case !exists:
+		Logger("UserNotConnected::"+packet.Saviour.Username, SYSTEM, WARN)
+		buf = genDataPacket("", "UserNotConnected", status, packet.Saviour.Username)
+	case !valid:
+		Logger("InvalidPackage", SYSTEM, WARN)
+		buf = genDataPacket("", "InvalidPackage", status, "")
+	case !currentUser.VerifyToken(packet.Saviour.Token):
+		Logger("InvalidToken::"+packet.Saviour.Username, SYSTEM, WARN)
+		buf = genDataPacket("", "InvalidPackage", status, "")
+	default:
+		changeData := strings.Split(packet.Saviour.Message, ":")
+		result := CommandHandler.ChangeUserRole(changeData[0], currentUser, changeData[1])
+		buf = genDataPacket(currentUser.GetToken(), result, status, packet.Saviour.Username)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	w.Write(buf)
+}
+
+func (sys System) removeUserRequest(w http.ResponseWriter, r *http.Request) {
+	var packet DataPacket
+	var buf []byte
+	var valid bool
+	status := 400
+	buf, _ = ioutil.ReadAll(r.Body)
+	valid, packet = loadDataPacket(buf)
+	currentUser, exists := sys.conUsers[packet.Saviour.Username]
+	switch {
+	case !exists:
+		Logger("UserNotConnected::"+packet.Saviour.Username, SYSTEM, WARN)
+		buf = genDataPacket("", "UserNotConnected", status, packet.Saviour.Username)
+	case !valid:
+		Logger("InvalidPackage", SYSTEM, WARN)
+		buf = genDataPacket("", "InvalidPackage", status, "")
+	case !currentUser.VerifyToken(packet.Saviour.Token):
+		Logger("InvalidToken::"+packet.Saviour.Username, SYSTEM, WARN)
+		buf = genDataPacket("", "InvalidPackage", status, "")
+	default:
+		result := CommandHandler.RemoveUser(packet.Saviour.Message, currentUser)
+		buf = genDataPacket(currentUser.GetToken(), result, status, packet.Saviour.Username)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	w.Write(buf)
+}
+
+// Admin command contains all adminitstrative commands for the server
+var CommandHandler Command
+
+type Command struct {
+}
+
+func InitCommand() {
+	var cmd Command
+	AccessHandler.LoadPerm(cmd)
+	CommandHandler = cmd
+}
+
+func (cmd Command) PermID() string {
+	return "Command"
+}
+
+func (cmd Command) DefaultPerm() map[string]bool {
+	accessMap := make(map[string]bool)
+	return accessMap
+}
+
+func (cmd Command) CreateUser(name string, pass string, email string) error {
 	var userCheck sql.NullString
 	var err error
 	Logger("CreateUser::"+name, SYSTEM, MSG)
@@ -226,18 +348,32 @@ func (sys System) CreateUser(name string, pass string, email string) error {
 }
 
 // RemoveUser removes a user entry from the database
-func (sys System) RemoveUser(name string) {
-	Logger("RemoveUser::"+name, SYSTEM, MSG)
-	exists, uid := GetUserID(name)
-	if exists {
+func (cmd Command) RemoveUser(removeUser string, requestUser *User) string {
+	AccessHandler.AllowAccess("admin", cmd)
+	Logger("RemoveUser::"+removeUser, SYSTEM, MSG)
+	exists, uid := GetUserID(removeUser)
+	switch {
+	case !exists:
+		Logger("CouldNotRemoveUser::DoesNotExist", SYSTEM, ERROR)
+		AccessHandler.DisableAccess("admin", cmd)
+		return "UserNotFound"
+	case !AccessHandler.CheckPerm(requestUser, cmd):
+		Logger("CouldNotRemoverUser::AccessDenied", SYSTEM, WARN)
+		AccessHandler.DisableAccess("admin", cmd)
+		return "AccessDenied"
+	default:
 		deleteUserToken := DBHandler.SetupExec(`DELETE FROM login_token WHERE uid = ?`, uid)
 		deleteUserRoles := DBHandler.SetupExec(`DELETE FROM user_roles WHERE uid = ?`, uid)
 		deleteSessions := DBHandler.SetupExec(`DELETE FROM sessions WHERE uid = ?`, uid)
 		deleteUser := DBHandler.SetupExec(`DELETE FROM users WHERE uid = ?`, uid)
 		DBHandler.Exec(deleteUserToken, deleteUserRoles, deleteSessions, deleteUser)
-	} else {
-		Logger("CouldNotRemoveUser::DoesNotExist", SYSTEM, ERROR)
+		AccessHandler.DisableAccess("admin", cmd)
+		return "OperationCompleted::User::" + removeUser + "::Removed"
 	}
+}
+
+func (cmd Command) ChangeUserRole(changeUser string, requestUser *User, newRole string) string {
+	return "OperationCompleted::User::" + changeUser + "::RoleChange::" + newRole
 }
 
 // GenHashPassword will hash a password string
