@@ -29,9 +29,8 @@ type CacheData struct {
 
 // Cache struct holds the
 type Cache struct {
-	dbExpireTime  time.Duration
-	memExpireTime time.Duration
-	memCache      map[string]map[string]interface{}
+	dbExpireTime time.Duration
+	memCache     map[string]map[string]interface{}
 }
 
 // InitCache sets up the CacheHandler global variable
@@ -40,7 +39,6 @@ func InitCache() {
 	cache.memCache = make(map[string]map[string]interface{})
 	options := OptionsHandler.GetOption("Core")
 	cache.dbExpireTime = time.Duration(int(options["DBExpireTime"].(float64))) * time.Minute
-	cache.memExpireTime = time.Duration(int(options["MemExpireTime"].(float64))) * time.Minute
 	CacheHandler = &cache
 	CronHandler.Add(func() {
 		CacheHandler.CheckCache()

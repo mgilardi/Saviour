@@ -8,14 +8,13 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
-	"os"
-	"path"
 	"strings"
 )
 
 const (
 	// MODULEOPT is the module name constant for options
 	MODULEOPT = "Options"
+	ETCPATH   = "/etc/saviour/"
 )
 
 var OptionsHandler Options
@@ -77,30 +76,15 @@ func (opt Options) loadOption(module string) map[string]interface{} {
 // FindPath will return the path to any subdirectory of the Saviour folder thats
 // within the path of the working directory
 func FindPath(searchPath string) (string, error) {
-	var assembledPath []string
-	Logger("SearchForConfig", PACKAGE+"."+MODULEOPT+".FindConfig", MSG)
-	wd, err := os.Getwd()
-	// Split the working directory path
-	paths := strings.Split(wd, string(os.PathSeparator))
-	// Iterate over the array and add the elements until you find the Saviour directory
-	for _, folder := range paths {
-		assembledPath = append(assembledPath, folder)
-		// If Saviour subdirectory is found iterate that directory for the specified search path
-		if folder == "Saviour" {
-			Logger("ConfigFoundSaviourFolder", PACKAGE+"."+MODULEOPT+".FindConfig", MSG)
-			Logger(path.Join(assembledPath...), PACKAGE+"."+MODULEOPT+".FindConfig", MSG)
-			dirs, _ := ioutil.ReadDir("/" + path.Join(assembledPath...))
-			if err != nil {
-				Logger("CouldNotOpenAssembledPath::"+path.Join(assembledPath...), PACKAGE+"."+MODULEOPT+".FindConfig", MSG)
-			}
-			// If searchPath directory is found within the Saviour directory generate a path
-			for _, dir := range dirs {
-				if dir.Name() == searchPath {
-					Logger("ConfigFolderFound", PACKAGE+"."+MODULEOPT+".FindConfig", MSG)
-					assembledPath = append(assembledPath, dir.Name())
-					return "/" + path.Join(assembledPath...) + "/", err
-				}
-			}
+	dirs, err := ioutil.ReadDir(ETCPATH)
+	if err != nil {
+		Logger("CouldNotOpenEtcPath::FolderNotFound", PACKAGE+"."+MODULEOPT+".FindConfig", MSG)
+	}
+	// If searchPath directory is found within the Saviour directory generate a path
+	for _, dir := range dirs {
+		if dir.Name() == searchPath {
+			Logger("FolderFound", PACKAGE+"."+MODULEOPT+".FindPath", MSG)
+			return ETCPATH + searchPath + "/", err
 		}
 	}
 	// If the directory is not found return an error

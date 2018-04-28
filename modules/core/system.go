@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -26,6 +25,7 @@ const (
 // System contains server responses to http requests
 type System struct {
 	hostname, port, local string
+	serv                  *http.Server
 	conUsers              map[string]*User
 }
 
@@ -37,71 +37,148 @@ func InitSystem(inProd bool) {
 	options := OptionsHandler.GetOption("Core")
 	sys.hostname = options["Hostname"].(string)
 	sys.port = options["Port"].(string)
-	sys.local = options["Location"].(string)
-	if !inProd {
-		sys.handleRequest()
-	} else {
-		sys.handleRequestProd()
-	}
+	sys.handleRequest()
+
 }
 
 // handleRequest sets up router for different webpage requests and redirects them to there function
 // ListenAndServ starts the server listing on port
 func (sys System) handleRequest() {
-	serv := &http.Server{
+	sys.serv = &http.Server{
 		Addr:         sys.hostname + ":" + sys.port,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
 		IdleTimeout:  5 * time.Second,
-		TLSConfig: &tls.Config{
-			InsecureSkipVerify: true,
+		TLSConfig:    &tls.Config{
+			//InsecureSkipVerify: true,
 		},
 	}
-	cert, key := sys.loadTLSCert()
+	defer sys.serv.Close()
+	cert, key := GetCert()
 	servRouter := mux.NewRouter()
-	serv.Handler = servRouter
+	sys.serv.Handler = servRouter
 	servRouter.HandleFunc("/", sys.indexPage)
 	servRouter.HandleFunc("/login", sys.loginRequest).Methods("POST")
 	servRouter.HandleFunc("/register", sys.createRequest).Methods("POST")
 	servRouter.HandleFunc("/request/logoff", sys.logoffRequest).Methods("POST")
 	servRouter.HandleFunc("/request/password", sys.changePassRequest).Methods("POST")
+	servRouter.HandleFunc("/request/reloadcert", sys.reloadCertRequest).Methods("POST")
 
-	Logger(serv.ListenAndServeTLS(cert, key).Error(), "System", ERROR)
+	Logger(sys.serv.ListenAndServeTLS(cert, key).Error(), "System", ERROR)
 }
 
-func (sys System) handleRequestProd() {
-	certPath, _ := FindPath("cert")
-	certManager := autocert.Manager{
-		Prompt:     autocert.AcceptTOS,
-		Cache:      autocert.DirCache(certPath),
-		HostPolicy: autocert.HostWhitelist("saviour.diyccs.com"),
+// Request Function is more general and allows the IPC communication to be checked
+// everytime the server responds to a packet being able to interact with the Main
+// server thread.
+func (sys System) request(w http.ResponseWriter, r *http.Request) {
+	var packet DataPacket
+	var buf []byte
+	var valid bool
+	buf, _ = ioutil.ReadAll(r.Body)
+	valid, packet = loadDataPacket(buf)
+	if !valid {
+		Logger("InvalidPacket", SYSTEM, WARN)
+		buf = genDataPacket("", "InvalidPacket", 400, "")
+	} else {
+		switch r.URL.Path {
+		case "/login":
+			buf = sys.login(packet)
+		case "/register":
+			buf = sys.create(packet)
+		case "/request/password":
+			buf = sys.changePass(packet)
+		default:
+			Logger("InvalidPath", SYSTEM, WARN)
+			buf = genDataPacket("", "InvalidPath", 400, "")
+		}
 	}
-	go http.ListenAndServe(":http", certManager.HTTPHandler(nil))
-	serv := &http.Server{
-		Addr:         sys.hostname + ":" + sys.port,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 5 * time.Second,
-		IdleTimeout:  5 * time.Second,
-		TLSConfig: &tls.Config{
-			GetCertificate: certManager.GetCertificate,
-		},
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(packet.Saviour.Status)
+	w.Write(buf)
+	// Handle Agent Signal
+	exists, signal := AgentHandler.checkSignal()
+	switch {
+	case !exists:
+		// Do Nothing
+	case exists && (signal == "UpdateCert"):
+		Logger("UpdateCertAgent::Restarting", SYSTEM, MSG)
+		sys.serv.Close()
+		os.Exit(0)
 	}
-	servRouter := mux.NewRouter()
-	serv.Handler = servRouter
-	servRouter.HandleFunc("/", sys.indexPage)
-	servRouter.HandleFunc("/login", sys.loginRequest).Methods("POST")
-	servRouter.HandleFunc("/register", sys.createRequest).Methods("POST")
-	servRouter.HandleFunc("/request/logoff", sys.logoffRequest).Methods("POST")
-	servRouter.HandleFunc("/request/password", sys.changePassRequest).Methods("POST")
-
-	Logger(serv.ListenAndServeTLS("", "").Error(), "System", ERROR)
 }
 
-func (sys System) loadTLSCert() (string, string) {
-	dir, _ := os.Getwd()
-	cert := dir + "/cert/server.crt"
-	key := dir + "/cert/server.key"
-	return cert, key
+func (sys System) login(packet DataPacket) []byte {
+	var buf []byte
+	status := 400
+	userFound, userMap, currentUser := InitUser(packet.Login.User, packet.Login.Pass)
+	switch {
+	case !userFound:
+		buf = genDataPacket("", "UserNotFound", status, packet.Login.User)
+		Logger("LoginFailed::InvalidRequest::"+packet.Login.User, SYSTEM, WARN)
+	default:
+		status = 200
+		buf = genDataPacket(currentUser.GetToken(), "LoginSuccessful", status, userMap["name"].(string))
+		Logger("LoginSuccessful::"+userMap["name"].(string), SYSTEM, MSG)
+	}
+	return buf
+}
+
+func (sys System) create(packet DataPacket) []byte {
+	var buf []byte
+	status := 400
+	Logger("CreatingUser::"+packet.Login.User, SYSTEM, MSG)
+	err := CommandHandler.CreateUser(packet.Login.User, packet.Login.Pass, packet.Login.Email)
+	if err != nil {
+		buf = genDataPacket("", err.Error(), status, packet.Login.User)
+	} else {
+		status = 200
+		buf = genDataPacket("", "UserCreationSucsessful::"+packet.Login.User, status, packet.Login.User)
+	}
+	return buf
+}
+
+func (sys System) changePass(packet DataPacket) []byte {
+	var buf []byte
+	status := 400
+	Logger("ChangingUserPassword::"+packet.Saviour.Username, SYSTEM, MSG)
+	exists, userMap, currentUser := GetUser(packet.Saviour.Username, packet.Saviour.Token)
+	switch {
+	case !exists:
+		buf = genDataPacket("", "UserNotAuthenticated", status, packet.Saviour.Username)
+	default:
+		status = 200
+		Logger("ChangePasswordRequest::"+userMap["name"].(string), SYSTEM, MSG)
+		changeRequest := strings.Split(packet.Saviour.Message, ":")
+		currentUser.SetPassword(changeRequest[1])
+		buf = genDataPacket(userMap["token"].(string), "PasswordChanged", status, userMap["name"].(string))
+	}
+	return buf
+}
+
+func (sys System) reloadCertRequest(w http.ResponseWriter, r *http.Request) {
+	var packet DataPacket
+	var buf []byte
+	var valid bool
+	buf, _ = ioutil.ReadAll(r.Body)
+	valid, packet = loadDataPacket(buf)
+	status := 400
+	switch {
+	case !valid:
+		Logger("InvalidPacket", SYSTEM, WARN)
+	case !(packet.Saviour.Message == "ReloadCert"):
+		Logger("InvalidMessage::"+packet.Saviour.Message, SYSTEM, WARN)
+	case !(r.Host == "localhost:"+sys.port):
+		Logger("InvalidRequestedHost::"+r.Host, SYSTEM, WARN)
+	default:
+		status = 200
+		Logger("CertificateUpdateRestart", SYSTEM, MSG)
+		w.Header().Set("Content-Type", "application/json")
+		buf = genDataPacket("", "Success", status, "")
+		w.WriteHeader(status)
+		w.Write(buf)
+		sys.serv.Close()
+		os.Exit(0)
+	}
 }
 
 // indexPage handles index page
@@ -383,4 +460,50 @@ func GenHashPassword(pass string) string {
 		Logger(err.Error(), SYSTEM, ERROR)
 	}
 	return string(bytes)
+}
+
+func GetCertServ() (string, string) {
+	var newestFile string
+	var latestFileTime int64
+	var latestCertFile string
+	var latestKeyFile string
+	options := OptionsHandler.GetOption("Core")
+	certFolder := options["CertLocation"].(string) + "csr/"
+	keyFolder := options["CertLocation"].(string) + "keys/"
+	certfiles, _ := ioutil.ReadDir(certFolder)
+	for _, cert := range certfiles {
+		file, err := os.Stat(certFolder + cert.Name())
+		Logger("FoundCertFile::"+cert.Name(), "System.GetCert", MSG)
+		if err != nil {
+			Logger("FileStatFailedCert", PACKAGE+"."+"System.GetCert", ERROR)
+		}
+		if file.ModTime().Unix() > latestFileTime {
+			latestFileTime = file.ModTime().Unix()
+			newestFile = certFolder + file.Name()
+		}
+	}
+	latestCertFile = newestFile
+	latestFileTime = 0
+	keyfiles, _ := ioutil.ReadDir(keyFolder)
+	for _, key := range keyfiles {
+		file, err := os.Stat(keyFolder + key.Name())
+		Logger("FoundKeyFile::"+key.Name(), "System.GetCert", MSG)
+		if err != nil {
+			Logger("FileStatFailedKey", PACKAGE+"."+"System.GetCert", ERROR)
+		}
+		if file.ModTime().Unix() > latestFileTime {
+			latestFileTime = file.ModTime().Unix()
+			newestFile = keyFolder + file.Name()
+		}
+	}
+	latestKeyFile = newestFile
+	Logger("LoadedCert::"+latestCertFile, SYSTEM, MSG)
+	Logger("LoadedKey::"+latestKeyFile, SYSTEM, MSG)
+	return latestCertFile, latestKeyFile
+}
+
+func GetCert() (string, string) {
+	options := OptionsHandler.GetOption("Core")
+	certFolder := options["CertLocation"].(string)
+	return certFolder + "/fullchain.pem", certFolder + "/privkey.pem"
 }

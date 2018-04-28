@@ -26,6 +26,7 @@ func main() {
 	core.InitLogger()
 	core.InitCache()
 	core.InitAccess()
+	core.InitAgent()
 	core.InitSystem(*inProd)
 	core.InitCommand()
 }

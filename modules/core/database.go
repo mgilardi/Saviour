@@ -31,7 +31,7 @@ type Database struct {
 func InitDatabase() {
 	var db Database
 	var err error
-	var user, pass string
+	var user, pass, dbname string
 	Logger("Starting", PACKAGE+"."+MODULEDB+".InitDatabase", MSG)
 	options := OptionsHandler.GetOption("Core")
 	if options["User"] == nil {
@@ -42,7 +42,8 @@ func InitDatabase() {
 	}
 	user = options["User"].(string)
 	pass = options["Pass"].(string)
-	db.dsn = user + ":" + pass + "@/saviour"
+	dbname = options["DB"].(string)
+	db.dsn = user + ":" + pass + "@/" + dbname
 	Logger("DSNLoaded", PACKAGE+"."+MODULEDB+".InitDatabase", MSG)
 	// Open Database
 	db.sql, err = sql.Open("mysql", db.dsn)

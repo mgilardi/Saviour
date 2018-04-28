@@ -50,6 +50,29 @@ func InitUser(name string, pass string) (bool, map[string]interface{}, *User) {
 	return verified, cacheMap, &user
 }
 
+func GetUser(name string, token string) (bool, map[string]interface{}, *User) {
+	var verified = false
+	var user User
+	var exists bool
+	var cacheMap map[string]interface{}
+	exists, user.uid = GetUserID(name)
+	user.name = name
+	if exists {
+		user.UpdateCache()
+		cacheMap = user.GetCache()
+		verifyToken := user.CheckTokenExists()
+		if verifyToken == token {
+			user.roles = user.GetUserRoleMap()
+			verified = true
+		} else {
+			Logger("InvalidToken::"+user.name, USER, WARN)
+		}
+	} else {
+		Logger("UserNotFound::"+name, USER, WARN)
+	}
+	return verified, cacheMap, &user
+}
+
 // CheckTokenExists checks to see if a token exists in the database if not
 // it generates one.
 func (user *User) CheckTokenExists() string {
