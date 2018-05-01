@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"database/sql"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -57,12 +56,7 @@ func (sys System) handleRequest() {
 	cert, key := GetCert()
 	servRouter := mux.NewRouter()
 	sys.serv.Handler = servRouter
-	servRouter.HandleFunc("/", sys.indexPage)
-	servRouter.HandleFunc("/login", sys.loginRequest).Methods("POST")
-	servRouter.HandleFunc("/register", sys.createRequest).Methods("POST")
-	servRouter.HandleFunc("/request/logoff", sys.logoffRequest).Methods("POST")
-	servRouter.HandleFunc("/request/password", sys.changePassRequest).Methods("POST")
-	servRouter.HandleFunc("/request/reloadcert", sys.reloadCertRequest).Methods("POST")
+	servRouter.PathPrefix("/").HandlerFunc(sys.request).Schemes("https")
 
 	Logger(sys.serv.ListenAndServeTLS(cert, key).Error(), "System", ERROR)
 }
@@ -100,7 +94,7 @@ func (sys System) request(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case !exists:
 		// Do Nothing
-	case exists && (signal == "UpdateCert"):
+	case (signal == "UpdateCert"):
 		Logger("UpdateCertAgent::Restarting", SYSTEM, MSG)
 		sys.serv.Close()
 		os.Exit(0)
@@ -155,218 +149,18 @@ func (sys System) changePass(packet DataPacket) []byte {
 	return buf
 }
 
-func (sys System) reloadCertRequest(w http.ResponseWriter, r *http.Request) {
-	var packet DataPacket
+func (sys System) removeUser(packet DataPacket) []byte {
 	var buf []byte
-	var valid bool
-	buf, _ = ioutil.ReadAll(r.Body)
-	valid, packet = loadDataPacket(buf)
-	status := 400
-	switch {
-	case !valid:
-		Logger("InvalidPacket", SYSTEM, WARN)
-	case !(packet.Saviour.Message == "ReloadCert"):
-		Logger("InvalidMessage::"+packet.Saviour.Message, SYSTEM, WARN)
-	case !(r.Host == "localhost:"+sys.port):
-		Logger("InvalidRequestedHost::"+r.Host, SYSTEM, WARN)
-	default:
-		status = 200
-		Logger("CertificateUpdateRestart", SYSTEM, MSG)
-		w.Header().Set("Content-Type", "application/json")
-		buf = genDataPacket("", "Success", status, "")
-		w.WriteHeader(status)
-		w.Write(buf)
-		sys.serv.Close()
-		os.Exit(0)
-	}
-}
-
-// indexPage handles index page
-func (sys System) indexPage(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Request_UserLogin:")
-	fmt.Println("ReceivedRequest")
-}
-
-// createRequest handles user creation/registration
-func (sys System) createRequest(w http.ResponseWriter, r *http.Request) {
-	var packet DataPacket
-	var buf []byte
-	var valid bool
-	buf, _ = ioutil.ReadAll(r.Body)
-	valid, packet = loadDataPacket(buf)
-	status := 400
-	switch {
-	case !valid:
-		Logger("InvalidPacket", SYSTEM, WARN)
-		buf = genDataPacket("", "InvalidPacket", status, "")
-	default:
-		status = 200
-		Logger("CreatingUser::"+packet.Login.User, SYSTEM, MSG)
-		err := CommandHandler.CreateUser(packet.Login.User, packet.Login.Pass, packet.Login.Email)
-		if err != nil {
-			status = 400
-			buf = genDataPacket("", err.Error(), status, packet.Login.User)
-		} else {
-			buf = genDataPacket("", "UserCreationSucsessful::"+packet.Login.User, status, packet.Login.User)
-		}
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	w.Write(buf)
-}
-
-// loginRequest handles initial login, if user is not found or password is incorrect it will return a UserNotFound
-// error, if user is already in the connected users map and marked as loggedIn the request will return a
-// UserAlreadyLoggedIn error, if the username and password is correct it will return the json including the token,
-// a status of 200, the username and a message of LoginSuccessful.
-func (sys System) loginRequest(w http.ResponseWriter, r *http.Request) {
-	var packet DataPacket
-	var buf []byte
-	var valid bool
-	status := 400
-	buf, _ = ioutil.ReadAll(r.Body)
-	valid, packet = loadDataPacket(buf)
-	Logger("LoginAttempt::"+packet.Login.User, SYSTEM, MSG)
-	userFound, userMap, currentUser := InitUser(packet.Login.User, packet.Login.Pass)
-	_, exists := sys.conUsers[packet.Login.User]
-	switch {
-	case !userFound:
-		buf = genDataPacket("", "UserNotFound", status, packet.Login.User)
-		Logger("LoginFailed::InvalidRequest::"+packet.Login.User, SYSTEM, WARN)
-	case !valid:
-		buf = genDataPacket("", "InvalidRequest", status, packet.Login.User)
-		Logger("LoginFailed::InvalidRequest::"+packet.Login.User, SYSTEM, WARN)
-	default:
-		status = 200
-		if !exists {
-			sys.conUsers[packet.Login.User] = currentUser
-		}
-		buf = genDataPacket(currentUser.GetToken(), "LoginSuccessful", status, userMap["name"].(string))
-		Logger("LoginSuccessful::"+userMap["name"].(string), SYSTEM, MSG)
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	w.Write(buf)
-}
-
-func (sys System) logoffRequest(w http.ResponseWriter, r *http.Request) {
-	var packet DataPacket
-	var buf []byte
-	var valid bool
-	status := 400
-	buf, _ = ioutil.ReadAll(r.Body)
-	valid, packet = loadDataPacket(buf)
-	currentUser, exists := sys.conUsers[packet.Saviour.Username]
-	switch {
-	case !valid:
-		Logger("InvalidPackage", SYSTEM, WARN)
-		buf = genDataPacket("", "InvalidPackage", status, "")
-	case !exists:
-		Logger("UserNotConnectedLogoff::"+packet.Saviour.Username, SYSTEM, WARN)
-		buf = genDataPacket("", "UserNotConnected", status, packet.Saviour.Username)
-	default:
-		userMap := currentUser.GetUserMap()
-		if !currentUser.VerifyToken(packet.Saviour.Token) {
-			Logger("InvalidTokenLogoff::"+userMap["name"].(string), SYSTEM, WARN)
-			buf = genDataPacket("", "InvalidToken", status, userMap["name"].(string))
-		} else {
-			status = 200
-			Logger("LogoffSuccsessful::"+userMap["name"].(string), SYSTEM, MSG)
-			buf = genDataPacket(userMap["token"].(string), "LogOff::Sucsessful", status, userMap["name"].(string))
-			delete(sys.conUsers, userMap["name"].(string))
-		}
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	w.Write(buf)
-}
-
-func (sys System) changePassRequest(w http.ResponseWriter, r *http.Request) {
-	var packet DataPacket
-	var buf []byte
-	var valid bool
-	status := 400
-	buf, _ = ioutil.ReadAll(r.Body)
-	valid, packet = loadDataPacket(buf)
-	currentUser, exists := sys.conUsers[packet.Saviour.Username]
-	switch {
-	case !valid:
-		Logger("InvalidPackage", SYSTEM, WARN)
-		buf = genDataPacket("", "InvalidPackage", status, "")
-	case !exists:
-		Logger("UserNotConnected::"+packet.Saviour.Username, SYSTEM, WARN)
-		buf = genDataPacket("", "UserNotConnected", status, packet.Saviour.Username)
-	default:
-		userMap := currentUser.GetUserMap()
-		if !currentUser.VerifyToken(packet.Saviour.Token) {
-			Logger("InvalidTokenChangePassword", SYSTEM, WARN)
-			buf = genDataPacket("", "InvalidToken", status, userMap["name"].(string))
-		} else {
-			status = 200
-			Logger("ChangePasswordRequest::"+userMap["name"].(string), SYSTEM, MSG)
-			changeRequest := strings.Split(packet.Saviour.Message, ":")
-			currentUser.SetPassword(changeRequest[1])
-			buf = genDataPacket(userMap["token"].(string), "PasswordChanged", status, userMap["name"].(string))
-		}
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	w.Write(buf)
-}
-
-func (sys System) changeRoleRequest(w http.ResponseWriter, r *http.Request) {
-	var packet DataPacket
-	var buf []byte
-	var valid bool
-	status := 400
-	buf, _ = ioutil.ReadAll(r.Body)
-	valid, packet = loadDataPacket(buf)
-	currentUser, exists := sys.conUsers[packet.Saviour.Username]
+	exists, _, currentUser := GetUser(packet.Saviour.Username, packet.Saviour.Token)
 	switch {
 	case !exists:
 		Logger("UserNotConnected::"+packet.Saviour.Username, SYSTEM, WARN)
-		buf = genDataPacket("", "UserNotConnected", status, packet.Saviour.Username)
-	case !valid:
-		Logger("InvalidPackage", SYSTEM, WARN)
-		buf = genDataPacket("", "InvalidPackage", status, "")
-	case !currentUser.VerifyToken(packet.Saviour.Token):
-		Logger("InvalidToken::"+packet.Saviour.Username, SYSTEM, WARN)
-		buf = genDataPacket("", "InvalidPackage", status, "")
-	default:
-		changeData := strings.Split(packet.Saviour.Message, ":")
-		result := CommandHandler.ChangeUserRole(changeData[0], currentUser, changeData[1])
-		buf = genDataPacket(currentUser.GetToken(), result, status, packet.Saviour.Username)
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	w.Write(buf)
-}
-
-func (sys System) removeUserRequest(w http.ResponseWriter, r *http.Request) {
-	var packet DataPacket
-	var buf []byte
-	var valid bool
-	status := 400
-	buf, _ = ioutil.ReadAll(r.Body)
-	valid, packet = loadDataPacket(buf)
-	currentUser, exists := sys.conUsers[packet.Saviour.Username]
-	switch {
-	case !exists:
-		Logger("UserNotConnected::"+packet.Saviour.Username, SYSTEM, WARN)
-		buf = genDataPacket("", "UserNotConnected", status, packet.Saviour.Username)
-	case !valid:
-		Logger("InvalidPackage", SYSTEM, WARN)
-		buf = genDataPacket("", "InvalidPackage", status, "")
-	case !currentUser.VerifyToken(packet.Saviour.Token):
-		Logger("InvalidToken::"+packet.Saviour.Username, SYSTEM, WARN)
-		buf = genDataPacket("", "InvalidPackage", status, "")
+		buf = genDataPacket("", "UserNotConnected", 400, packet.Saviour.Username)
 	default:
 		result := CommandHandler.RemoveUser(packet.Saviour.Message, currentUser)
-		buf = genDataPacket(currentUser.GetToken(), result, status, packet.Saviour.Username)
+		buf = genDataPacket(currentUser.GetToken(), result, 200, packet.Saviour.Username)
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	w.Write(buf)
+	return buf
 }
 
 // Admin command contains all adminitstrative commands for the server
@@ -424,6 +218,13 @@ func (cmd Command) CreateUser(name string, pass string, email string) error {
 	return err
 }
 
+func (cmd Command) changeUserRole(roleChangeUser string, role string, requestUser *User) string {
+	AccessHandler.AllowAccess("admin", cmd)
+	Logger("ChangeUserRole::"+roleChangeUser, SYSTEM, MSG)
+	//exists, roleChangeUserID := GetUserID(roleChangeUser)
+	return "OperationCompleted::User::" + roleChangeUser + "::RoleChange::" + role
+}
+
 // RemoveUser removes a user entry from the database
 func (cmd Command) RemoveUser(removeUser string, requestUser *User) string {
 	AccessHandler.AllowAccess("admin", cmd)
@@ -447,10 +248,6 @@ func (cmd Command) RemoveUser(removeUser string, requestUser *User) string {
 		AccessHandler.DisableAccess("admin", cmd)
 		return "OperationCompleted::User::" + removeUser + "::Removed"
 	}
-}
-
-func (cmd Command) ChangeUserRole(changeUser string, requestUser *User, newRole string) string {
-	return "OperationCompleted::User::" + changeUser + "::RoleChange::" + newRole
 }
 
 // GenHashPassword will hash a password string

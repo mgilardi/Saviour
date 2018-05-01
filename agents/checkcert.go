@@ -1,14 +1,11 @@
 package main
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net/http"
-	"os/exec"
-	"strings"
+	"net"
 
 	"github.com/fsnotify/fsnotify"
 )
@@ -22,11 +19,11 @@ func loadCoreOptions() map[string]interface{} {
 	optionMap := make(map[string]interface{})
 	raw, err := ioutil.ReadFile("/etc/saviour/config/core.json")
 	if err != nil {
-		log.Fatal(err.Error())
+		log.Fatal("ReadFile::" + err.Error())
 	}
 	err = json.Unmarshal(raw, &optionMap)
 	if err != nil {
-		log.Fatal(err.Error())
+		log.Fatal("JSON::" + err.Error())
 	}
 	return optionMap
 }
@@ -53,11 +50,8 @@ func startMonitoring() {
 			}
 		}
 	}()
-	err = watcher.Add(options["CertLocation"].(string) + "certs/")
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = watcher.Add(options["CertLocation"].(string) + "keys/")
+	err = watcher.Add(options["CertLocation"].(string))
+	log.Println("CheckingCertLocation::" + options["CertLocation"].(string))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -65,20 +59,12 @@ func startMonitoring() {
 }
 
 func sendRestartCommand(options map[string]interface{}) {
-	packet := strings.NewReader(
-		`{
-	 "login": {},
-	  "saviour": {
-		  "message": "ReloadCert"
-	 }
-  }`)
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
+	servAddr := "localhost:" + options["PortIPC"].(string)
+	conn, err := net.Dial("tcp", servAddr)
+	defer conn.Close()
+	if err != nil {
+		log.Fatal("Saviour::Agent::ConnectionFailed::" + err.Error())
 	}
-	client.Post("https://localhost.saviour.diyccs.com:"+options["Port"].(string)+"/request/reloadcert", "application/json", packet)
-	go exec.Command(options["SaviourLocation"].(string)).Run()
+	conn.Write([]byte("UpdateCert"))
+	log.Println("Saviour::Agent::UpdateCertSignalSent")
 }
