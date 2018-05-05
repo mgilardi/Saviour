@@ -132,7 +132,6 @@ func (cache *Cache) SetCache(obj CacheObj) {
 	var buf bytes.Buffer
 	var cid string
 	var err error
-	var expTime int64
 	cid, cacheData.DataMap = obj.Cache()
 	gob.Register(CacheData{})
 	encoder := gob.NewEncoder(&buf)
@@ -140,12 +139,13 @@ func (cache *Cache) SetCache(obj CacheObj) {
 	if err != nil {
 		Logger(err.Error(), PACKAGE+"."+MODULECACHE+".SetCache", ERROR)
 	}
-	expTime = time.Now().Add(cache.dbExpireTime).Unix()
+	currentTime := time.Now().Unix()
+	expTime := time.Now().Add(cache.dbExpireTime).Unix()
 	Logger("WritingCache::"+cid+":"+strconv.FormatInt(expTime, 10), PACKAGE+"."+MODULECACHE+".SetCache", MSG)
 	insertCache := DBHandler.SetupExec(
-		`INSERT INTO cache (cid, data, expires) `+
-			`VALUES (?, ?, ?) ON DUPLICATE KEY `+
-			`UPDATE data = ?, expires = ?`, cid, buf.Bytes(), expTime, buf.Bytes(), expTime)
+		`INSERT INTO cache (cid, data, created, expires) `+
+			`VALUES (?, ?, ?, ?) ON DUPLICATE KEY `+
+			`UPDATE data = ?, expires = ?`, cid, buf.Bytes(), currentTime, expTime, buf.Bytes(), expTime)
 	DBHandler.Exec(insertCache)
 }
 

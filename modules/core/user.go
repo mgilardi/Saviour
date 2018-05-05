@@ -127,10 +127,10 @@ func (user *User) GetUserRoleMap() map[string]int {
 	var rid int
 	var roleName string
 	var roleMap map[string]int
-	rows, err := DBHandler.sql.Query(`SELECT user_roles.rid, role.name `+
+	rows, err := DBHandler.sql.Query(`SELECT user_roles.rid, roles.name `+
 		`FROM users `+
 		`JOIN user_roles ON users.uid = user_roles.uid `+
-		`JOIN role ON user_roles.rid = role.rid `+
+		`JOIN roles ON user_roles.rid = roles.rid `+
 		`WHERE users.uid = ?`, user.uid)
 	if err != nil {
 		Logger(err.Error(), USER, ERROR)
@@ -187,10 +187,11 @@ func (user *User) CheckToken(uid int) (bool, string) {
 // StoreToken writes user token to the database
 func (user *User) StoreToken(uid int, token string) {
 	Logger("StoreNewToken", USER, MSG)
+	currentTime := time.Now().Unix()
 	expTime := time.Now().Add(time.Duration(24) * time.Hour).Unix()
 	insertToken := DBHandler.SetupExec(
-		`INSERT INTO login_token(uid, token, expires) VALUES (?, ?, ?) `+
-			`ON DUPLICATE KEY UPDATE token = ?, expires = ?`, uid, token, expTime, token, expTime)
+		`INSERT INTO login_token(uid, token, created, expires) VALUES (?, ?, ?, ?) `+
+			`ON DUPLICATE KEY UPDATE token = ?, expires = ?`, uid, token, currentTime, expTime, token, expTime)
 	DBHandler.Exec(insertToken)
 }
 

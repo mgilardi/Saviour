@@ -25,8 +25,8 @@ func main() {
 	core.InitDatabase()
 	core.InitLogger()
 	core.InitCache()
-	core.InitAccess()
 	core.InitAgent()
+	core.InitAccess()
 	core.InitSystem(*inProd)
 	core.InitCommand()
 }

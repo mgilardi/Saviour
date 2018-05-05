@@ -2,6 +2,8 @@ package core
 
 import (
 	"database/sql"
+	"encoding/json"
+	"io/ioutil"
 )
 
 const (
@@ -9,223 +11,94 @@ const (
 	ACCESS = "Access"
 )
 
-// AccessHandler is the global variable to access the access module
-var AccessHandler *Access
+var AccessHandler Access
 
-// AccessObj is a container for the permissions for each loaded module
-type AccessObj struct {
-	name         string
-	allowedRoles map[string]bool
-}
-
-func makeAccessObj(name string) *AccessObj {
-	var obj AccessObj
-	obj.allowedRoles = make(map[string]bool)
-	obj.name = name
-	return &obj
-}
-
-// Perm interface for any module that requires access control
-type Perm interface {
-	PermID() string
-	DefaultPerm() map[string]bool
-}
-
-// Access struct contains the map of permissions loaded for each module
 type Access struct {
-	accessMap map[string]*AccessObj
+	roleIDMap map[string]int
 }
 
-// InitAccess is the initial configuration point for the access module
+type Permission struct {
+	Name   string `json:"name"`
+	Role   string `json:"role"`
+	Module string `json:"module"`
+}
+
 func InitAccess() {
 	var access Access
-	Logger("StartingAccess", ACCESS, MSG)
-	access.accessMap = make(map[string]*AccessObj)
-	access.loadDB()
-	AccessHandler = &access
+	access.roleIDMap = access.GetRoleIDMap()
+	access.loadDefaultAccess()
+	AccessHandler = access
 }
 
-// CreateUserRole creates a new user role named with input
-func (access *Access) CreateUserRole(roleName string) {
-	Logger("CreatingUserRole", ACCESS, MSG)
-	createNewRole := DBHandler.SetupExec(`INSERT INTO role (name) VALUES (?)`, roleName)
-	DBHandler.Exec(createNewRole)
-	access.reloadPerm()
-	access.updateDB()
-}
-
-// RemoveUserRole removes a user role that matches the input name
-func (access *Access) RemoveUserRole(roleName string) {
-	Logger("RemovingUserRole", ACCESS, MSG)
-	roleMap := access.genRoleNameMap()
-	deleteRole := DBHandler.SetupExec(`DELETE FROM role WHERE name = ?`, roleName)
-	deleteUserRoles := DBHandler.SetupExec(`DELETE FROM user_roles WHERE rid = ?`, roleMap[roleName])
-	DBHandler.Exec(deleteRole, deleteUserRoles)
-	access.clearDB()
-	access.reloadPerm()
-	access.updateDB()
-}
-
-// GetUserRoles returns a map containing the user roles and there role id
-func (access *Access) GetUserRoles() map[string]int {
-	return access.genRoleNameMap()
-}
-
-// AllowAccess will disable access for a usertype
-func (access *Access) AllowAccess(usrTyp string, obj Perm) {
-	access.accessMap[obj.PermID()].allowedRoles[usrTyp] = true
-	access.updateDB()
-}
-
-// DisableAccess will disable access for a usertype
-func (access *Access) DisableAccess(usrTyp string, obj Perm) {
-	access.accessMap[obj.PermID()].allowedRoles[usrTyp] = false
-	access.updateDB()
-}
-
-// GetPermMap will return the permissions map for input module
-func (access *Access) GetPermMap(obj Perm) map[string]bool {
-	return access.accessMap[obj.PermID()].allowedRoles
-}
-
-// GetAccessMap returns the accessMap which contains all loaded modules
-func (access *Access) GetAccessMap() map[string]*AccessObj {
-	return access.accessMap
-}
-
-// CheckPerm check if a user has access to a module
-func (access *Access) CheckPerm(user *User, obj Perm) bool {
-	valid := false
-	for name := range user.GetRoleNames() {
-		if access.accessMap[obj.PermID()].allowedRoles[name] {
-			valid = true
-			break
-		}
-	}
-	return valid
-}
-
-// LoadPerm loads the permissions from the provided module that
-// matches the Perm interface
-func (access *Access) LoadPerm(obj Perm) {
-	_, exists := access.accessMap[obj.PermID()]
-	if !exists {
-		access.accessMap[obj.PermID()] = makeAccessObj(obj.PermID())
-		usrDefault := obj.DefaultPerm()
-		roleMap := access.getRoles()
-		for k, v := range usrDefault {
-			roleMap[k] = v
-		}
-		access.accessMap[obj.PermID()].allowedRoles = roleMap
-		access.updateDB()
-	}
-}
-
-func (access *Access) reloadPerm() {
-	roleMap := access.getRoles()
-	for module, permObj := range access.accessMap {
-		for userRole, perm := range permObj.allowedRoles {
-			roleMap[userRole] = perm
-		}
-		access.accessMap[module].allowedRoles = roleMap
-	}
-}
-
-func (access *Access) getRoles() map[string]bool {
-	Logger("GettingRolesMap", ACCESS, MSG)
-	rolesMap := make(map[string]bool)
-	rows, err := DBHandler.sql.Query(`SELECT name FROM role`)
-	if err != nil {
-		Logger(err.Error(), ACCESS, ERROR)
-	}
-	for rows.Next() {
-		var role string
-		err = rows.Scan(&role)
-		if err != nil {
-			Logger(err.Error(), ACCESS, ERROR)
-		}
-		Logger("Loading::"+role, ACCESS, MSG)
-		rolesMap[role] = false
-	}
-	return rolesMap
-}
-
-func (access *Access) loadDB() {
-	var rid int
-	var module string
-	var allowed bool
-	var name string
-	Logger("LoadingAccessFromDB", ACCESS, MSG)
-	rows, _ := DBHandler.sql.Query(
-		`SELECT user_permissions.rid, module, allowed, name FROM user_permissions ` +
-			` JOIN role ON user_permissions.rid = role.rid`)
-	for rows.Next() {
-		err := rows.Scan(&rid, &module, &allowed, &name)
-		if err != nil {
-			Logger(err.Error()+"::loadDB::Scan", ACCESS, ERROR)
-		}
-		_, exists := access.accessMap[module]
-		if !exists {
-			access.accessMap[module] = makeAccessObj(module)
-			access.accessMap[module].allowedRoles[name] = allowed
-		} else {
-			access.accessMap[module].allowedRoles[name] = allowed
-		}
-	}
-	rows.Close()
-	Logger("LoadDBComplete", ACCESS, MSG)
-}
-
-func (access *Access) genRoleNameMap() map[string]int {
-	var rid int
-	var name string
-	Logger("GeneratingRoleMap", ACCESS, MSG)
-	roleMap := make(map[string]int)
-	rows, err := DBHandler.sql.Query(`SELECT rid, name FROM role`)
-	if err != nil {
-		Logger(err.Error(), ACCESS, ERROR)
-	}
-	for rows.Next() {
-		rows.Scan(&rid, &name)
-		roleMap[name] = rid
-	}
-	return roleMap
-}
-
-func (access *Access) updateDB() {
+func (access Access) loadDefaultAccess() {
 	var err error
-	roleMap := access.genRoleNameMap()
-	for name, acMap := range access.accessMap {
-		Logger("LoadingAccessDB::"+name, ACCESS, MSG)
-		for usrTyp, perm := range acMap.allowedRoles {
-			var allowed sql.NullBool
-			err = DBHandler.sql.QueryRow(
-				`SELECT allowed FROM user_permissions `+
-					`WHERE rid = ? AND module = ?`, roleMap[usrTyp], name).Scan(&allowed)
-			switch {
-			// @TODO Checkout the MySQL REPLACE statement.
-			case err == sql.ErrNoRows:
-				Logger("CreatingNewEntry", ACCESS, MSG)
-				writeRolePermissions := DBHandler.SetupExec(
-					`INSERT INTO user_permissions (rid, module, allowed) `+
-						`VALUES (?, ?, ?)`, roleMap[usrTyp], name, perm)
-				DBHandler.Exec(writeRolePermissions)
-			case err != nil:
-				Logger(err.Error(), ACCESS, ERROR)
-			case allowed.Valid && allowed.Bool == perm:
-				// Ignore
-			default:
-				updateRolePermissions := DBHandler.SetupExec(
-					`UPDATE user_permissions SET allowed = ? `+
-						`WHERE rid = ? AND module =?`, perm, roleMap[usrTyp], name)
-				DBHandler.Exec(updateRolePermissions)
-			}
+	var tableCount int
+	err = DBHandler.Query(`SELECT COUNT(*) FROM role_permissions`).Scan(&tableCount)
+	if err != nil {
+		Logger("TableCountFailed::"+err.Error(), "ACCESS", FATAL)
+	}
+	if tableCount != 0 {
+		// Do Nothing
+	} else {
+		permsMap := make(map[string]Permission)
+		path, err := FindPath("config")
+		if err != nil {
+			Logger("DefaultAccessPermsFailed::"+err.Error(), "ACCESS", FATAL)
+		}
+		raw, err := ioutil.ReadFile(path + "access.json")
+		if err != nil {
+			Logger("DefaultAccessPermsFailed::"+err.Error(), "ACCESS", FATAL)
+		}
+		err = json.Unmarshal(raw, &permsMap)
+		if err != nil {
+			Logger("DefaultAccessPermsFailed::"+err.Error(), "ACCESS", FATAL)
+		}
+		for _, perm := range permsMap {
+			access.SetRoleAccess(perm.Role, perm.Module, perm.Name)
 		}
 	}
 }
 
-func (access *Access) clearDB() {
-	Logger("ClearingAccessDB", ACCESS, MSG)
-	clearAccessTable := DBHandler.SetupExec(`TRUNCATE TABLE user_permissions`)
-	DBHandler.Exec(clearAccessTable)
+func (access Access) GetUserAccess(user *User, permission string) bool {
+	allowed := false
+	userRoleMap := user.GetUserRoleMap()
+	for _, value := range userRoleMap {
+		err := DBHandler.Query(`SELECT rid, permission FROM role_permissions `+
+			`WHERE rid = ? AND permission = ?`, value, permission).Scan()
+		switch {
+		case err == sql.ErrNoRows:
+			//
+		default:
+			allowed = true
+		}
+	}
+	return allowed
+}
+
+func (access Access) SetRoleAccess(role string, module string, permission string) {
+	rid := access.roleIDMap[role]
+	insertRoleAccess := DBHandler.SetupExec(`INSERT INTO role_permissions (rid, module, permission) `+
+		`VALUES (?, ?, ?)`, rid, module, permission)
+	Logger("WritingRolePermission::"+role+"::"+module+"::"+permission, "ACCESS", MSG)
+	DBHandler.Exec(insertRoleAccess)
+}
+
+func (access Access) GetRoleIDMap() map[string]int {
+	roleIDMap := make(map[string]int)
+	exists, rows := DBHandler.QueryRows(`SELECT rid, name FROM roles`)
+	if !exists {
+		Logger("RoleIDMapNotFound", "ACCESS", FATAL)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var rid int
+		var name string
+		err := rows.Scan(&rid, &name)
+		if err != nil {
+			Logger("RoleIDMapFailed::"+err.Error(), "ACCESS", FATAL)
+		}
+		Logger("RoleIDFound::"+name, "ACCESS", MSG)
+		roleIDMap[name] = rid
+	}
+	return roleIDMap
 }

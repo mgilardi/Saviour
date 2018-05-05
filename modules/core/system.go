@@ -56,7 +56,7 @@ func (sys System) handleRequest() {
 	cert, key := GetCert()
 	servRouter := mux.NewRouter()
 	sys.serv.Handler = servRouter
-	servRouter.PathPrefix("/").HandlerFunc(sys.request).Schemes("https")
+	servRouter.PathPrefix("/").HandlerFunc(sys.request)
 
 	Logger(sys.serv.ListenAndServeTLS(cert, key).Error(), "System", ERROR)
 }
@@ -171,17 +171,7 @@ type Command struct {
 
 func InitCommand() {
 	var cmd Command
-	AccessHandler.LoadPerm(cmd)
 	CommandHandler = cmd
-}
-
-func (cmd Command) PermID() string {
-	return "Command"
-}
-
-func (cmd Command) DefaultPerm() map[string]bool {
-	accessMap := make(map[string]bool)
-	return accessMap
 }
 
 func (cmd Command) CreateUser(name string, pass string, email string) error {
@@ -205,21 +195,21 @@ func (cmd Command) CreateUser(name string, pass string, email string) error {
 	default:
 		Logger("CreatingUser::Name:"+name+"::"+email, SYSTEM, MSG)
 		hashPass := GenHashPassword(pass)
-		roleMap := AccessHandler.genRoleNameMap()
-		_, uid := GetUserID(name)
+		currentTime := time.Now().Unix()
 		insertUser := DBHandler.SetupExec(
-			`INSERT INTO users (name, pass, mail) `+
-				`VALUES (?, ?, ?)`, name, hashPass, email)
+			`INSERT INTO users (name, pass, mail, created) `+
+				`VALUES (?, ?, ?, ?)`, name, hashPass, email, currentTime)
+		DBHandler.Exec(insertUser)
+		_, uid := GetUserID(name)
 		insertUserRole := DBHandler.SetupExec(
 			`INSERT INTO user_roles (uid, rid) `+
-				`VALUES (?, ?)`, uid, roleMap["user"])
-		DBHandler.Exec(insertUser, insertUserRole)
+				`VALUES (?, ?)`, uid, 3)
+		DBHandler.Exec(insertUserRole)
 	}
 	return err
 }
 
 func (cmd Command) changeUserRole(roleChangeUser string, role string, requestUser *User) string {
-	AccessHandler.AllowAccess("admin", cmd)
 	Logger("ChangeUserRole::"+roleChangeUser, SYSTEM, MSG)
 	//exists, roleChangeUserID := GetUserID(roleChangeUser)
 	return "OperationCompleted::User::" + roleChangeUser + "::RoleChange::" + role
@@ -227,25 +217,18 @@ func (cmd Command) changeUserRole(roleChangeUser string, role string, requestUse
 
 // RemoveUser removes a user entry from the database
 func (cmd Command) RemoveUser(removeUser string, requestUser *User) string {
-	AccessHandler.AllowAccess("admin", cmd)
 	Logger("RemoveUser::"+removeUser, SYSTEM, MSG)
 	exists, uid := GetUserID(removeUser)
 	switch {
 	case !exists:
 		Logger("CouldNotRemoveUser::DoesNotExist", SYSTEM, ERROR)
-		AccessHandler.DisableAccess("admin", cmd)
 		return "UserNotFound"
-	case !AccessHandler.CheckPerm(requestUser, cmd):
-		Logger("CouldNotRemoverUser::AccessDenied", SYSTEM, WARN)
-		AccessHandler.DisableAccess("admin", cmd)
-		return "AccessDenied"
 	default:
 		deleteUserToken := DBHandler.SetupExec(`DELETE FROM login_token WHERE uid = ?`, uid)
 		deleteUserRoles := DBHandler.SetupExec(`DELETE FROM user_roles WHERE uid = ?`, uid)
 		deleteSessions := DBHandler.SetupExec(`DELETE FROM sessions WHERE uid = ?`, uid)
 		deleteUser := DBHandler.SetupExec(`DELETE FROM users WHERE uid = ?`, uid)
 		DBHandler.Exec(deleteUserToken, deleteUserRoles, deleteSessions, deleteUser)
-		AccessHandler.DisableAccess("admin", cmd)
 		return "OperationCompleted::User::" + removeUser + "::Removed"
 	}
 }

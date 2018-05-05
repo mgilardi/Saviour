@@ -24,8 +24,8 @@ USE `saviour`;
 CREATE TABLE `cache` (
   `cid` varchar(255) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL COMMENT 'Primary Search Key For Cache',
   `data` longblob NOT NULL COMMENT 'Binary Data For Cache',
-  `created` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `expires` bigint(11) DEFAULT NULL COMMENT 'Unix Time When Expires When NULL never expires'
+  `created` bigint(11) NOT NULL COMMENT 'Created DateTime',
+  `expires` bigint(11) NOT NULL COMMENT 'Unix Time When Expires When NULL never expires'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='Cache Table takes in converted blob';
 
 -- --------------------------------------------------------
@@ -52,8 +52,8 @@ CREATE TABLE `login_token` (
   `uid` int(11) NOT NULL COMMENT 'User ID associated with token',
   `tid` int(11) NOT NULL COMMENT 'Token ID',
   `token` varchar(255) NOT NULL COMMENT 'Token',
-  `created` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Token Created Timestamp',
-  `expires` bigint(20) NOT NULL COMMENT 'Token expire time UNIXTIME'
+  `created` bigint(11) NOT NULL COMMENT 'Token Created Timestamp',
+  `expires` bigint(11) NOT NULL COMMENT 'Token expire time UNIXTIME'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 -- --------------------------------------------------------
@@ -62,32 +62,17 @@ CREATE TABLE `login_token` (
 -- Table structure for table `role`
 --
 
-CREATE TABLE `role` (
+CREATE TABLE `roles` (
   `rid` int(11) NOT NULL COMMENT 'Role ID',
   `name` varchar(64) DEFAULT NULL COMMENT 'Role Name',
   `weight` int(11) DEFAULT NULL COMMENT 'Table Weight'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='User Roles are contained in this table';
 
-INSERT INTO role (`rid`, `name`, `weight`) VALUES (1, 'admin', 1);
-INSERT INTO role (`rid`, `name`, `weight`) VALUES (2, 'user', 2);
+INSERT INTO roles (`rid`, `name`, `weight`) VALUES (1, 'administrator', 1);
+INSERT INTO roles (`rid`, `name`, `weight`) VALUES (2, 'unauthorized.user', 2);
+INSERT INTO roles (`rid`, `name`, `weight`) VALUES (3, 'authorized.user', 3);
 
 -- --------------------------------------------------------
-
---
--- Table structure for table `sessions`
---
-
-CREATE TABLE `sessions` (
-  `uid` int(11) NOT NULL COMMENT 'Associated UserID',
-  `sid` int(11) NOT NULL COMMENT 'SessionID',
-  `hostname` varchar(128) DEFAULT NULL COMMENT 'Current Session Hostname',
-  `timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Created Timestamp',
-  `expires` bigint(20) NOT NULL COMMENT 'Session Expire Time UNIXTIME',
-  `sesssion` varchar(45) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-
--- --------------------------------------------------------
-
 --
 -- Table structure for table `users`
 --
@@ -97,8 +82,9 @@ CREATE TABLE `users` (
   `name` varchar(45) NOT NULL COMMENT 'Username',
   `pass` varchar(255) NOT NULL COMMENT 'Hashed Password',
   `mail` varchar(45) DEFAULT NULL COMMENT 'Email Address',
-  `created` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Created Timestamp',
+  `created` bigint(11) NOT NULL COMMENT 'User Created Timestamp',
   `status` varchar(45) NOT NULL DEFAULT 'Offline' COMMENT 'Online/Offline Status',
+  `lastlogin` bigint(11) NULL COMMENT 'Last Login Timestamp',
   `timezone` varchar(45) DEFAULT NULL COMMENT 'User Selected Timezone'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
@@ -107,7 +93,7 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`uid`, `name`, `pass`, `mail`, `created`, `status`, `timezone`) VALUES
-(1, 'Admin', '$2a$14$GzWiSEdfzmjprH5oC6XXqeRIiN/LS3nggWmFSRVHi2eH8Vbgbxqbm', 'ian@diysecurity.com', '2017-11-09 17:12:23', 'Offline', 'Phoenix');
+(1, 'Admin', '$2a$14$GzWiSEdfzmjprH5oC6XXqeRIiN/LS3nggWmFSRVHi2eH8Vbgbxqbm', 'ian@diysecurity.com', UNIX_TIMESTAMP(), 'Offline', 'Phoenix');
 
 -- --------------------------------------------------------
 
@@ -115,10 +101,10 @@ INSERT INTO `users` (`uid`, `name`, `pass`, `mail`, `created`, `status`, `timezo
 -- Table structure for table `user_permissions`
 --
 
-CREATE TABLE `user_permissions` (
+CREATE TABLE `role_permissions` (
   `rid` int(11) NOT NULL COMMENT 'rid associated with the id in role',
   `module` varchar(255) NOT NULL COMMENT 'module name associated with loaded module',
-  `allowed` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Boolean for user access'
+  `permission` varchar(255) NOT NULL COMMENT 'permission name for user access'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='User Permissions Table';
 
 -- --------------------------------------------------------
@@ -133,10 +119,7 @@ CREATE TABLE `user_roles` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='User_Roles Many-to-Many table';
 
 INSERT INTO `user_roles` (`uid`, `rid`) VALUES (1, 1);
-
---
--- Indexes for dumped tables
---
+INSERT INTO `user_roles` (`uid`, `rid`) VALUES (1, 3);
 
 --
 -- Indexes for table `cache`-
@@ -160,17 +143,10 @@ ALTER TABLE `login_token`
   ADD UNIQUE KEY `uid` (`uid`) USING BTREE;
 
 --
--- Indexes for table `role`
+-- Indexes for table `roles`
 --
-ALTER TABLE `role`
+ALTER TABLE `roles`
   ADD PRIMARY KEY (`rid`);
-
---
--- Indexes for table `sessions`
---
-ALTER TABLE `sessions`
-  ADD PRIMARY KEY (`sid`) USING BTREE,
-  ADD KEY `uid` (`uid`);
 
 --
 -- Indexes for table `users`
@@ -182,7 +158,7 @@ ALTER TABLE `users`
 --
 -- Indexes for table `user_permissions`
 --
-ALTER TABLE `user_permissions`
+ALTER TABLE `role_permissions`
   ADD KEY `rid` (`rid`,`module`);
 
 --
@@ -209,13 +185,8 @@ ALTER TABLE `login_token`
 --
 -- AUTO_INCREMENT for table `role`
 --
-ALTER TABLE `role`
+ALTER TABLE `roles`
   MODIFY `rid` int(11) NOT NULL AUTO_INCREMENT;
---
--- AUTO_INCREMENT for table `sessions`
---
-ALTER TABLE `sessions`
-  MODIFY `sid` int(11) NOT NULL AUTO_INCREMENT;
 --
 -- AUTO_INCREMENT for table `users`
 --
