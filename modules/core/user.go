@@ -10,6 +10,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+var GlobalUser *User
+
 // User handles users
 type User struct {
 	uid         int
@@ -71,6 +73,15 @@ func GetUser(name string, token string) (bool, map[string]interface{}, *User) {
 		Logger("UserNotFound::"+name, USER, WARN)
 	}
 	return verified, cacheMap, &user
+}
+
+func GetUnauthorizedUser() *User {
+	var user *User
+	user.uid = 0
+	user.name = "Unauthorized"
+	user.UpdateCache()
+	user.roles = user.GetUserRoleMap()
+	return user
 }
 
 // CheckTokenExists checks to see if a token exists in the database if not

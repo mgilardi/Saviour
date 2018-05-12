@@ -31,5 +31,6 @@ func TestCache_InitAccess(t *testing.T) {
 	InitDatabase()
 	InitLogger()
 	InitCache()
+	InitAccess()
 	//InitSystem()
 }

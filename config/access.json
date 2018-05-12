@@ -1,0 +1,22 @@
+{
+  "removeuser": {
+    "name": "removeuser",
+    "roles": ["administrator"],
+    "module": "system"
+  },
+  "changepassword": {
+    "name": "changepassword",
+    "roles": ["administrator","authorized.user"],
+    "module": "system"
+  },
+  "login": {
+    "name": "login",
+    "roles": ["unauthorized.user"],
+    "module": "system"
+  },
+  "register": {
+    "name": "register",
+    "roles": ["unauthorized.user"],
+    "module": "system"
+  }
+}

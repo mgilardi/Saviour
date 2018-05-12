@@ -92,6 +92,8 @@ CREATE TABLE `users` (
 -- Dumping data for table `users`
 --
 
+INSERT INTO `users` (`uid`, `name`, `pass`, `created`) VALUES
+(0, 'Unauthorized', " ", UNIX_TIMESTAMP());
 INSERT INTO `users` (`uid`, `name`, `pass`, `mail`, `created`, `status`, `timezone`) VALUES
 (1, 'Admin', '$2a$14$GzWiSEdfzmjprH5oC6XXqeRIiN/LS3nggWmFSRVHi2eH8Vbgbxqbm', 'ian@diysecurity.com', UNIX_TIMESTAMP(), 'Offline', 'Phoenix');
 
@@ -118,6 +120,7 @@ CREATE TABLE `user_roles` (
   `rid` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='User_Roles Many-to-Many table';
 
+INSERT INTO `user_roles` (`uid`, `rid`) VALUES (0, 2);
 INSERT INTO `user_roles` (`uid`, `rid`) VALUES (1, 1);
 INSERT INTO `user_roles` (`uid`, `rid`) VALUES (1, 3);
 

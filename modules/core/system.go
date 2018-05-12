@@ -81,6 +81,8 @@ func (sys System) request(w http.ResponseWriter, r *http.Request) {
 			buf = sys.create(packet)
 		case "/request/password":
 			buf = sys.changePass(packet)
+		case "request/removeuser":
+			buf = sys.removeUser(packet)
 		default:
 			Logger("InvalidPath", SYSTEM, WARN)
 			buf = genDataPacket("", "InvalidPath", 400, "")
@@ -139,6 +141,8 @@ func (sys System) changePass(packet DataPacket) []byte {
 	switch {
 	case !exists:
 		buf = genDataPacket("", "UserNotAuthenticated", status, packet.Saviour.Username)
+	case !AccessHandler.GetUserAccess(currentUser, "changepassword"):
+		buf = genDataPacket("", "CommandDeniedUserNotAuthorized", status, packet.Saviour.Username)
 	default:
 		status = 200
 		Logger("ChangePasswordRequest::"+userMap["name"].(string), SYSTEM, MSG)
