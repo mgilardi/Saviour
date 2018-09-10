@@ -1,5 +1,7 @@
 package core
 
+// This file contains the user stucture and asssociated functions.
+
 import (
 	"crypto/rand"
 	"database/sql"
@@ -52,6 +54,8 @@ func InitUser(name string, pass string) (bool, map[string]interface{}, *User) {
 	return verified, cacheMap, &user
 }
 
+// GetUser returns a boolean if the user exists, a cache map of all user info,
+// and a pointer to the user structure
 func GetUser(name string, token string) (bool, map[string]interface{}, *User) {
 	var verified = false
 	var user User
@@ -75,6 +79,7 @@ func GetUser(name string, token string) (bool, map[string]interface{}, *User) {
 	return verified, cacheMap, &user
 }
 
+// GetUnauthorizedUser function for returning an unauthorized user structure
 func GetUnauthorizedUser() *User {
 	var user *User
 	user.uid = 0

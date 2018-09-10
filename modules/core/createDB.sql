@@ -104,6 +104,7 @@ INSERT INTO `users` (`uid`, `name`, `pass`, `mail`, `created`, `status`, `timezo
 --
 
 CREATE TABLE `role_permissions` (
+  `pid` int(11) NOT NULL COMMENT 'pid associated with the permission id',
   `rid` int(11) NOT NULL COMMENT 'rid associated with the id in role',
   `module` varchar(255) NOT NULL COMMENT 'module name associated with loaded module',
   `permission` varchar(255) NOT NULL COMMENT 'permission name for user access'
@@ -162,6 +163,7 @@ ALTER TABLE `users`
 -- Indexes for table `user_permissions`
 --
 ALTER TABLE `role_permissions`
+  ADD PRIMARY KEY (`pid`),
   ADD KEY `rid` (`rid`,`module`);
 
 --
@@ -190,6 +192,11 @@ ALTER TABLE `login_token`
 --
 ALTER TABLE `roles`
   MODIFY `rid` int(11) NOT NULL AUTO_INCREMENT;
+--
+-- AUTO_INCREMENT for tables `role_permissions`
+--
+ALTER TABLE `role_permissions`
+  MODIFY `pid` int(11) NOT NULL AUTO_INCREMENT;
 --
 -- AUTO_INCREMENT for table `users`
 --

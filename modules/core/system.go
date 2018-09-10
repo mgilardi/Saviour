@@ -141,7 +141,7 @@ func (sys System) changePass(packet DataPacket) []byte {
 	switch {
 	case !exists:
 		buf = genDataPacket("", "UserNotAuthenticated", status, packet.Saviour.Username)
-	case !AccessHandler.GetUserAccess(currentUser, "changepassword"):
+	case !AccessHandler.CheckUserAccess(currentUser, "changepassword"):
 		buf = genDataPacket("", "CommandDeniedUserNotAuthorized", status, packet.Saviour.Username)
 	default:
 		status = 200
@@ -160,6 +160,9 @@ func (sys System) removeUser(packet DataPacket) []byte {
 	case !exists:
 		Logger("UserNotConnected::"+packet.Saviour.Username, SYSTEM, WARN)
 		buf = genDataPacket("", "UserNotConnected", 400, packet.Saviour.Username)
+	case !AccessHandler.CheckUserAccess(currentUser, "removeuser"):
+		Logger("CommandDeniedUserNotAuthorized", SYSTEM, MSG)
+		buf = genDataPacket("", "CommandDeniedUserNotAuhorized", 400, currentUser.GetName())
 	default:
 		result := CommandHandler.RemoveUser(packet.Saviour.Message, currentUser)
 		buf = genDataPacket(currentUser.GetToken(), result, 200, packet.Saviour.Username)
@@ -233,7 +236,7 @@ func (cmd Command) RemoveUser(removeUser string, requestUser *User) string {
 		deleteSessions := DBHandler.SetupExec(`DELETE FROM sessions WHERE uid = ?`, uid)
 		deleteUser := DBHandler.SetupExec(`DELETE FROM users WHERE uid = ?`, uid)
 		DBHandler.Exec(deleteUserToken, deleteUserRoles, deleteSessions, deleteUser)
-		return "OperationCompleted::User::" + removeUser + "::Removed"
+		return removeUser + "::Removed"
 	}
 }
 

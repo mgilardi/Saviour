@@ -24,6 +24,7 @@ type DataPacket struct {
 		Status   int    `json:"status,omitempty" validate:"lte=600|len=0"`
 		Token    string `json:"token,omitempty" validate:"max=45,ascii|len=0"`
 		Message  string `json:"message,omitempty" validate:"max=45|len=0"`
+		Perms    []Perm `json:"perms,omitempty"`
 	} `json:"saviour"`
 }
 
@@ -36,6 +37,7 @@ func genDataPacket(token string, message string, status int, username string) []
 	packet.Saviour.Message = message
 	packet.Saviour.Status = status
 	packet.Saviour.Username = username
+	//packet.Saviour.Perms = AccessHandler.GetPerms()
 	buf, err := json.Marshal(&packet)
 	if err != nil {
 		Logger(err.Error(), PACKAGE+"."+MODULEPACKET+".genDataPacket", ERROR)
