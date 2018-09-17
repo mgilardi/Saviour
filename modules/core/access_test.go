@@ -34,11 +34,12 @@ func TestAccess_InitAccess(t *testing.T) {
 	InitLogger()
 	InitCache()
 	InitAccess()
+	InitCommand()
 	// Commented because testing requires server emulation
 	//InitSystem()
 }
 
-func TestAccess_createRole(t *testing.T) {
+func TestAccess_CreateRole(t *testing.T) {
 	Logger("TestingRoleCreation", ACCESS, MSG)
 	AccessHandler.CreateRole("test")
 	if !AccessHandler.CheckRole("test") {
@@ -47,9 +48,9 @@ func TestAccess_createRole(t *testing.T) {
 	}
 }
 
-func TestAccess_cloneRole(t *testing.T) {
+func TestAccess_CloneRole(t *testing.T) {
 	var clonedPerm, testPerm []*Perm
-	match := true
+	var match bool
 	Logger("TestingRoleCloneing", ACCESS, MSG)
 	AccessHandler.CloneRole("testclone", "authorized.user")
 	perms := AccessHandler.GetPerms()
@@ -63,37 +64,24 @@ func TestAccess_cloneRole(t *testing.T) {
 			}
 		}
 	}
-	switch {
-	case testPerm.Name == "":
-		Logger("FailedToGetTestPerm", ACCESS, ERROR)
-		t.Error("FailedToGetTestPerm")
-		match = false
-	case clonedPerm.Name == "":
-		Logger("FailedToGetClonedPerm", ACCESS, ERROR)
-		t.Error("FailedToGetClonedPerm")
-		match = false
-	case len(testPerm.Roles) != len(clonedPerm.Roles):
-		Logger("RoleLengthDoesNotEqual", ACCESS, ERROR)
-		t.Error("RoleLengthDoesNotEqual")
-		match = false
-	default:
-		for i, role := range testPerm.Roles {
-			if clonedPerm.Roles[i] != role {
-				Logger("FailedMisMatchedRoleArray", ACCESS, ERROR)
-				t.Error("FailedMisMatchedRoleArray")
+	for _, perm := range testPerm {
+		for _, cloned := range clonedPerm {
+			if perm.Name == cloned.Name {
+				match = true
+			} else {
 				match = false
+				break
 			}
 		}
-	}
-	if !match {
-		t.Fatal("FailedRolesDoNotMatch")
-	} else {
-		t.Log("RolesMatched")
+		if !match {
+			t.Error("PermissionMisMatch")
+			break
+		}
 	}
 }
 
 func TestAccess_CheckUserAccess(t *testing.T) {
-	exists, userMap, user := InitUser("Admin", "Password")
+	exists, _, user := InitUser("Admin", "Password")
 	switch {
 	case !exists:
 		t.Error("UserDoesNotExist")

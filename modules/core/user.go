@@ -80,13 +80,13 @@ func GetUser(name string, token string) (bool, map[string]interface{}, *User) {
 }
 
 // GetUnauthorizedUser function for returning an unauthorized user structure
-func GetUnauthorizedUser() *User {
-	var user *User
+func GetUnAuthorizedUser() *User {
+	var user User
 	user.uid = 0
-	user.name = "Unauthorized"
+	user.name = "UnAuthorized"
 	user.UpdateCache()
 	user.roles = user.GetUserRoleMap()
-	return user
+	return &user
 }
 
 // CheckTokenExists checks to see if a token exists in the database if not
