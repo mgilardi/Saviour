@@ -18,5 +18,10 @@
     "name": "register",
     "roles": ["unauthorized.user"],
     "module": "system"
+  },
+  "rolechange": {
+    "name": "rolechange",
+    "roles": ["administrator"],
+    "module": "system"
   }
 }

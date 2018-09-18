@@ -81,6 +81,16 @@ func (sys System) request(w http.ResponseWriter, r *http.Request) {
 			buf = sys.changePass(packet)
 		case "request/removeuser":
 			buf = sys.removeUser(packet)
+		case "request/createrole":
+			buf = sys.createRole(packet)
+		case "request/clonerole":
+			buf = sys.cloneRole(packet)
+		case "request/removerole":
+			buf = sys.removeRole(packet)
+		case "request/adduserrole":
+			buf = sys.addUserRole(packet)
+		case "request/removeuserrole":
+			buf = sys.removeUserRole(packet)
 		default:
 			Logger("InvalidPath", SYSTEM, WARN)
 			buf = genDataPacket("", "InvalidPath", 400, "")
@@ -163,6 +173,94 @@ func (sys System) removeUser(packet DataPacket) []byte {
 		buf = genDataPacket("", "CommandDeniedUserNotAuhorized", 400, currentUser.GetName())
 	default:
 		result := CommandHandler.RemoveUser(packet.Saviour.Message, currentUser)
+		buf = genDataPacket(currentUser.GetToken(), result, 200, packet.Saviour.Username)
+	}
+	return buf
+}
+
+func (sys System) createRole(packet DataPacket) []byte {
+	var buf []byte
+	exists, _, currentUser := GetUser(packet.Saviour.Username, packet.Saviour.Token)
+	switch {
+	case !exists:
+		Logger("UserNotConnected::"+packet.Saviour.Username, SYSTEM, WARN)
+		buf = genDataPacket("", "UserNotConnected", 400, packet.Saviour.Username)
+	case !AccessHandler.CheckUserAccess(currentUser, "rolechange"):
+		Logger("CommandDeniedUserNotAuthorized", SYSTEM, MSG)
+		buf = genDataPacket("", "CommandDeniedUserNotAuhorized", 400, currentUser.GetName())
+	default:
+		AccessHandler.CreateRole(packet.Saviour.Message)
+		buf = genDataPacket(currentUser.GetToken(), "CreatedRole::"+packet.Saviour.Message, 200, packet.Saviour.Username)
+	}
+	return buf
+}
+
+func (sys System) cloneRole(packet DataPacket) []byte {
+	var buf []byte
+	exists, _, currentUser := GetUser(packet.Saviour.Username, packet.Saviour.Token)
+	switch {
+	case !exists:
+		Logger("UserNotConnected::"+packet.Saviour.Username, SYSTEM, WARN)
+		buf = genDataPacket("", "UserNotConnected", 400, packet.Saviour.Username)
+	case !AccessHandler.CheckUserAccess(currentUser, "rolechange"):
+		Logger("CommandDeniedUserNotAuthorized", SYSTEM, MSG)
+		buf = genDataPacket("", "CommandDeniedUserNotAuhorized", 400, currentUser.GetName())
+	default:
+		cloneRole := strings.Split(packet.Saviour.Message, ":")
+		AccessHandler.CloneRole(cloneRole[0], cloneRole[1])
+		buf = genDataPacket(currentUser.GetToken(), "ClonedRole::"+cloneRole[0]+"::"+cloneRole[1], 200, packet.Saviour.Username)
+	}
+	return buf
+}
+
+func (sys System) removeRole(packet DataPacket) []byte {
+	var buf []byte
+	exists, _, currentUser := GetUser(packet.Saviour.Username, packet.Saviour.Token)
+	switch {
+	case !exists:
+		Logger("UserNotConnected::"+packet.Saviour.Username, SYSTEM, WARN)
+		buf = genDataPacket("", "UserNotConnected", 400, packet.Saviour.Username)
+	case !AccessHandler.CheckUserAccess(currentUser, "rolechange"):
+		Logger("CommandDeniedUserNotAuthorized", SYSTEM, MSG)
+		buf = genDataPacket("", "CommandDeniedUserNotAuhorized", 400, currentUser.GetName())
+	default:
+		AccessHandler.RemoveRole(packet.Saviour.Message)
+		buf = genDataPacket(currentUser.GetToken(), "RemovedRole::"+packet.Saviour.Message, 200, packet.Saviour.Username)
+	}
+	return buf
+}
+
+func (sys System) addUserRole(packet DataPacket) []byte {
+	var buf []byte
+	exists, _, currentUser := GetUser(packet.Saviour.Username, packet.Saviour.Token)
+	switch {
+	case !exists:
+		Logger("UserNotConnected::"+packet.Saviour.Username, SYSTEM, WARN)
+		buf = genDataPacket("", "UserNotConnected", 400, packet.Saviour.Username)
+	case !AccessHandler.CheckUserAccess(currentUser, "rolechange"):
+		Logger("CommandDeniedUserNotAuthorized", SYSTEM, MSG)
+		buf = genDataPacket("", "CommandDeniedUserNotAuhorized", 400, currentUser.GetName())
+	default:
+		changeUser := strings.Split(packet.Saviour.Message, ":")
+		result := CommandHandler.AddUserRole(changeUser[0], changeUser[1])
+		buf = genDataPacket(currentUser.GetToken(), result, 200, packet.Saviour.Username)
+	}
+	return buf
+}
+
+func (sys System) removeUserRole(packet DataPacket) []byte {
+	var buf []byte
+	exists, _, currentUser := GetUser(packet.Saviour.Username, packet.Saviour.Token)
+	switch {
+	case !exists:
+		Logger("UserNotConnected::"+packet.Saviour.Username, SYSTEM, WARN)
+		buf = genDataPacket("", "UserNotConnected", 400, packet.Saviour.Username)
+	case !AccessHandler.CheckUserAccess(currentUser, "rolechange"):
+		Logger("CommandDeniedUserNotAuthorized", SYSTEM, MSG)
+		buf = genDataPacket("", "CommandDeniedUserNotAuhorized", 400, currentUser.GetName())
+	default:
+		changeUser := strings.Split(packet.Saviour.Message, ":")
+		result := CommandHandler.RemoveUserRole(changeUser[0], changeUser[1])
 		buf = genDataPacket(currentUser.GetToken(), result, 200, packet.Saviour.Username)
 	}
 	return buf

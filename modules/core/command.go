@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+const (
+	COMMAND = "Command"
+)
+
 // Admin command contains all adminitstrative commands for the server
 var CommandHandler Command
 
@@ -52,10 +56,45 @@ func (cmd Command) CreateUser(name string, pass string, email string) error {
 	return err
 }
 
-func (cmd Command) ChangeUserRole(roleChangeUser string, role string, requestUser *User) string {
+func (cmd Command) AddUserRole(roleChangeUser string, role string) string {
+	var result string
 	Logger("ChangeUserRole::"+roleChangeUser, SYSTEM, MSG)
-	//exists, roleChangeUserID := GetUserID(roleChangeUser)
-	return "OperationCompleted::User::" + roleChangeUser + "::RoleChange::" + role
+	exists, uid := GetUserID(roleChangeUser)
+	rid, roleExists := AccessHandler.roleMap[role]
+	switch {
+	case !exists:
+		Logger("RoleUserDoesNotExist", COMMAND, ERROR)
+		result = "RoleUserDoesNotExist"
+	case !roleExists:
+		Logger("RoleDoesNotExists", COMMAND, ERROR)
+		result = "RoleDoesNotExist"
+	default:
+		insertUserRole := DBHandler.SetupExec(`INSERT INTO user_roles (uid, rid) `+
+			`VALUES (?, ?)`, uid, rid)
+		DBHandler.Exec(insertUserRole)
+		result = "OperationCompleted::User::" + roleChangeUser + "::RoleChange::" + role
+	}
+	return result
+}
+
+func (cmd Command) RemoveUserRole(roleChangeUser string, role string) string {
+	var result string
+	Logger("RemoveUserRole::"+roleChangeUser, COMMAND, MSG)
+	exists, uid := GetUserID(roleChangeUser)
+	rid, roleExists := AccessHandler.roleMap[role]
+	switch {
+	case !exists:
+		Logger("RoleUserDoesNotExists", COMMAND, MSG)
+		result = "RoleUserDoesNotExist"
+	case !roleExists:
+		Logger("RoleDoesNotExists", COMMAND, MSG)
+		result = "RoleDoesNotExist"
+	default:
+		deleteUserRole := DBHandler.SetupExec(`DELETE FROM user_roles WHERE uid = ? AND rid = ?`, uid, rid)
+		DBHandler.Exec(deleteUserRole)
+		result = "OperationSucsessful::RoleRemoved::" + role + "::FROM::" + roleChangeUser
+	}
+	return result
 }
 
 // RemoveUser removes a user entry from the database
