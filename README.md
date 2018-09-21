@@ -1,272 +1,384 @@
-# Saviour
+# Savior
+Savior is a back-end server that allows handling credit card transactions to be monitored by clients. The Savior server distributes real-time information web clients and mobile devices. As well as writing to reports and other consumers of Savior's transaction data. Savior also is the blocking mechanism to the credit card transaction and will hold transactions waiting to be approved by the client.
 
-## Description:
+This server is made up of separate modules that handle the different areas of the Savior service.
 
-Savior is a back-end server that allows handling credit card transactions to be
-monitored by clients. The Saviour server distributes real-time information web
-clients and mobile devices. As well as writing to reports and other consumers
-of Saviour's transaction data. Saviour also is the blocking mechanism to the
-credit card transaction and will hold transactions waiting to be approved by
-the client.
+## Savior service
 
-This server is made up of separate modules that handle the different areas of
-the Saviour service. These include:
+#### Access
 
-* Access
+Handles login/logout, encryption layer and determining if a user is an administrator.
 
-Handles login/logout, encryption layer, & determining if a user is an Administrator
+#### Cache
 
-* Cache
+A general caching module that allows other modules to cache information in the database or elsewhere.
 
-A general caching module that allows other modules to cache information in the
-database or elsewhere.
+#### Database
 
-* Database
+Allows Savior to read, write and manage over the database.
 
-Allows Saviour to read, write, & manage over the database
+#### Logger
 
-* Logger
+Provides logging structure for Savior. Handles output of logs, error output levels and determines how verbose the server is.
 
-Provides logging structure for Saviour. Handles output of logs, Error output
-levels and determine how verbose the server is.
+#### Messaging
 
-* Messaging
+Handles alerts to clients via email, text, push notification, web, et cetera.
 
-Handles alerts to clients via Email, Text, Notification, Web, etc.
+#### Metadata
 
-* Metadata
+Tracks data from transactions and records them in a way that can be used to determine unusual activity on the account.
 
-Tracks data from transactions and records them in a way that can be used
-to determine unusual activity on the account.
+#### Rules
 
-* Rules
+Determines if transactions take place automatically or are halted and the user is alerted based on metadata and user configured rules.
 
-Determines if transactions take place automatically or are halted and the
-user is alerted based on metadata and user configured rules.
+#### System
 
-* System
+Handles server connecting clients, requests, system information, reading/writing to disk and various other functions.
 
-Handles server connecting clients, requests, system information,
-reading/writing to disk, and various other functions
+#### User
 
-* User
+Handles user information and requests.
 
-Handles user information and requests
+#### Settings
 
-### Settings
+Settings for each modules are located inside the module folder. Option type is declared in the JSON file followed by the option value.
 
-Settings for each modules are located inside the module folder. Option type is
-declared in the json file followed by the option value.
-
-Example:
-
+##### Example
 ```
 {"Type":"Value","Type":"Value"}
 ```
 
+## Coding Standards
 
-### Coding Standards
+The Savior service is written in the [Go programming language](https://www.golang.org) following the [Drupal coding standards](https://www.drupal.org/docs/develop/standards/coding-standards).
 
-This program is written in go (www.golang.org) following the durpal coding
-standards (https://www.drupal.org/docs/develop/standards/coding-standards)
+#### Exceptions
 
-Exceptions:
+- Double quotes should always be used in Go
+- Required_Once() does not apply
+- Semicolons are not used in Go
+- Naming convention is camelCase instead of underscore
 
-*Double quotes should always be used in go
-*Required_Once() does not apply
-*Semicolons are not used in go
-*Naming convention is camel case instead of underscore
+#### Comments/GoDoc
 
-Comments/GoDoc:
-GoDoc parses lines that "//Name" proceed any type, variable, constant, function,or
-package and generates a html file with documentation
+GoDoc parses lines that "//Name" proceed any type, variable, constant, function or package and generates a HTML file with documentation.
 
-Example:
-
+##### Example
 ```
-// Function Description
-// More Text Here
-func Function() {
-...
+// Function name
+// and description
+func Foo() {
+    // Code here
 }
 ```
 
-### API Documentation
+## Savior API
 
-The following contains examples of json transactions between the client and server. Both successful
-and failure.
+The following documentation contains examples of JSON transactions between the client and server. Examples include successes and failures for reference.
 
-## General
+All objects below are to be assumed to be formatted with standard JSON.
 
-Standard Response to a packet that is not recognized or contains incorrect elements for the current
-transaction.
+### General
 
+Standard response to a packet that is not recognized or contains incorrect elements for the current transaction.
+
+```
 {
-  "login": {},
-    "saviour": {
-      "status": 400,
-      "message": "InvalidPacket"
-    }
+  "status": "fail",
+  "code": 400,
+  "message": "invalid"
+  "result": {}
 }
+```
 
-## User registration
+### User registration
 
-user registration requests are sent as a post to http://domain.name:8080/register
+User registration requests are sent as a POST request to http://domain.name:8080/savior/user/register.
 
-JSON Registration Client Packet Example:
+#### User registration object
 
+The **userRegister** object contains two main values and four sub-values:
+- *{type}* contains the transaction type for processing (e.g. userRegister, userLogin, etc)
+- *{user}* contains the user information
+    - *{id}* contains the integer ID number for the new user
+    - *{username}* contains the plain text username for the new user
+    - *{password}* contains the plain text password for the new user
+    - *{email}* contains the email address for the new user
+
+##### User registration POST example
+
+```
 {
-"login":
-  {
-    "user":"User1","pass":"Password","email":"user@somewhere.com"
+  "type": "userRegister",
+  "user": {
+    "id": 123,
+    "username": "User1",
+    "password": "Password",
+    "email": "user@somewhere.com"
   }
 }
+```
 
-Array Login Contains Three Elements:
+#### Response
+The response object contains four main values and three sub-values:
+- *{status}* contains current HTTP status in human-readable format
+- *{code}* contains current HTTP status code
+- *{message}* contains current server message
+- *{result}* contains the user information
+    - *{type}* contains the transaction type for processing (e.g. userRegister, userLogin, etc)
+    - *{id}* contains the integer ID number for the new user
+    - *{username}* contains the plain text username for the new user
 
-user contains the user name for the new user
-pass contains the plain text password for the new user
-email contains the email address for the new user
-
-The correct server response from a successful user creation:
-
+##### Expected response for successful user creation
+```
 {
-  "login": {},
-    "saviour": {
-      "username": "User1",
-      "status": 200,
-      "message": "UserCreationSucsessful::User1"
-    }
-}
-
-The correct server response from a duplicate user creation:
-
-{
-  "login": {},
-    "saviour": {
-      "username": "User1",
-      "status": 400,
-      "message": "DuplicateUser::UserCreationFailed"
-    }
-}
-
-The correct server response from a empty name field:
-
-{
-  "login": {},
-    "saviour": {
-      "status": 400,
-      "message": "NameEntryIsEmpty::UserCreationFailed"
-    }
-}
-
-The correct server response from a empty password field:
-
-{
-  "login": {},
-    "saviour": {
-      "username": "User1",
-      "status": 400,
-      "message": "PasswordEntryIsEmpty::UserCreationFailed"
-    }
-}
-
-The correct server response from a empty email field:
-
-{
-  "login": {},
-    "saviour": {
-      "username": "User12",
-      "status": 400,
-      "message": "EmailEntryIsEmpty::UserCreationFailed"
-    }
-}
-
-Array Saviour Contains Three Elements:
-username contains the user name thats been requested to be created
-status contains current http status
-message contains current server message
-
-## Login transaction
-
-login requests are sent as a post request to http://domain.name:8080/login
-
-JSON Login Client Packet:
-
-{
-  "login":
-  {
-  "user":"Admin","pass":"Password"
+  "status": "ok",
+  "code": 200,
+  "message": "success",
+  "result": {
+    "type": "userRegister",
+    "id": "123",
+    "username": "User1"
   }
 }
+```
 
-Array Login Contains Two Elements:
-
-user contains the user name for this login session
-pass  contains the password for this login session
-
-JSON Login Server Response:
-
-The correct server response from a successful login:
-
+##### Expected response for duplicate user
+```
 {
-  "login": {},
-    "saviour": {
-      "username": "Admin",
-      "status": 200,
-      "token": "M8YQ6Ez_-c9wyzBJ362l2Kqi8B2SJ0GxwBW_JZiVbaU=",
-      "message": "LoginSuccessful"
-    }
+  "status": "fail",
+  "code": 400,
+  "message": "duplicate",
+  "result": {
+    "type": "userRegister",
+    "id": "123",
+    "username": "User1"
+  }
 }
+```
 
-The correct server response to a failed login attempt:
-
+##### Expected response when a sent value is *NULL*
+```
 {
-  "login": {},
-    "saviour": {
-      "username": "Admin",
-      "status": 400,
-      "message": "UserNotFound"
-    }
+  "status": "fail",
+  "code": 400,
+  "message": "invalid",
+  "result": {
+    "type": "userRegister",
+    "id": "123",
+    "username": "User1"
+  }
 }
+```
 
-Array Saviour Contains Four Elements:
+### User login
 
-username contains the current users name
-status contains current http status code
-token contains the current authentication token
-message contains the current server message
+Login requests are sent as a POST request to http://domain.name:8080/savior/user/login.
 
-### Logoff Transaction
+#### User login object
 
-Logoff request to the are send as a POST request to http://domain.name/request/logoff
+The **userLogin** object contains two main values and four sub-values:
+- *{type}* contains the transaction type for processing (e.g. userRegister, userLogin, etc)
+- *{user}* contains the user information
+    - *{id}* contains the integer ID number for the existing user
+    - *{username}* contains the plain text username for the existing user
+    - *{password}* contains the plain text password for the existing user
+    - *{email}* contains the email address for the existing user
 
-JSON Client Logoff Packet:
-
+##### User login POST example
+```
 {
-  "login": {},
-    "saviour": {
-      "username": "Admin",
-      "status": 200,
-      "token": "M8YQ6Ez_-c9wyzBJ362l2Kqi8B2SJ0GxwBW_JZiVbaU="
-    }
+  "type": "userLogin",
+  "user": {
+    "id": 123,
+    "username": "User1",
+    "password": "Password",
+    "email": "user@somewhere.com"
+  }
 }
+```
 
-Array saviour contains the following elements:
+#### Response
 
-username contains the name of the current username
-status contains the current html status
-token contains the authentication token for the current sesssion
+The response object contains five main values and three sub-values:
+- *{status}* contains current HTTP status in human-readable format
+- *{code}* contains current HTTP status code
+- *{token}* contains unique token for transaction
+- *{message}* contains current server message
+- *{result}* contains the user information
+    - *{type}* contains the transaction type for processing (e.g. userRegister, userLogin, etc)
+    - *{id}* contains the integer ID number for the new user
+    - *{username}* contains the plain text username for the new user
 
-JSON Server Logoff Response:
-
-The correct server response to a successful logoff:
-
+##### Expected response for successful user login
+```
 {
-  "login": {},
-    "saviour": {
-      "username": "Admin",
-      "status": 200,
-      "message": "LogOff::Sucsessful"
-    }
+  "status": "ok",
+  "code": 200,
+  "token": "M8YQ6Ez_-c9wyzBJ362l2Kqi8B2SJ0GxwBW_JZiVbaU=",
+  "message": "success",
+  "result": {
+    "type": "userLogin",
+    "id": "123",
+    "username": "User1"
+  }
 }
+```
+
+##### Expected response for failed login attempt
+```
+{
+  "status": "fail",
+  "code": 400,
+  "token": "M8YQ6Ez_-c9wyzBJ362l2Kqi8B2SJ0GxwBW_JZiVbaU=",
+  "message": "invalid",
+  "result": {
+    "type": "userLogin",
+    "id": "123",
+    "username": "User1"
+  }
+}
+```
+
+### Change password
+
+Change password requests to the server are sent as a POST request to http://domain.name:8080/savior/user/change-password.
+
+#### User change password object
+
+The **userChangePassword** object contains two main values and four sub-values:
+- *{type}* contains the transaction type for processing (e.g. userRegister, userLogin, etc)
+- *{user}* contains the user information
+    - *{id}* contains the integer ID number for the existing user
+    - *{username}* contains the plain text username for the existing user
+    - *{password}* contains the plain text password for the existing user
+    - *{email}* contains the email address for the existing user
+
+##### User change password POST example
+```
+{
+  "type": "userChangePassword",
+  "user": {
+    "id": 123,
+    "username": "User1",
+    "password": "newPassword",
+    "email": "user@somewhere.com"
+  }
+}
+```
+#### Response
+
+The response object contains five main values and three sub-values:
+- *{status}* contains current HTTP status in human-readable format
+- *{code}* contains current HTTP status code
+- *{token}* contains unique token for transaction
+- *{message}* contains current server message
+- *{result}* contains the user information
+    - *{type}* contains the transaction type for processing (e.g. userRegister, userLogin, etc)
+    - *{id}* contains the integer ID number for the new user
+    - *{username}* contains the plain text username for the new user
+
+##### Expected response for successful user password change
+```
+{
+  "status": "ok",
+  "code": 200,
+  "token": "M8YQ6Ez_-c9wyzBJ362l2Kqi8B2SJ0GxwBW_JZiVbaU=",
+  "message": "success",
+  "result": {
+    "type": "userChangePassword",
+    "id": "123",
+    "username": "User1"
+  }
+}
+```
+
+##### Expected response for failed user password change
+```
+{
+  "status": "fail",
+  "code": 400,
+  "token": "M8YQ6Ez_-c9wyzBJ362l2Kqi8B2SJ0GxwBW_JZiVbaU=",
+  "message": "invalid",
+  "result": {
+    "type": "userChangePassword",
+    "id": "123",
+    "username": "User1"
+  }
+}
+```
+
+### Remove user
+
+User removal requests to the server are sent as a POST request to http://domain.name:8080/savior/user/remove.
+
+#### Remove user password object
+
+The **userRemove** object contains two main values and four sub-values:
+- *{type}* contains the transaction type for processing (e.g. userRegister, userLogin, etc)
+- *{user}* contains the user information
+    - *{id}* contains the integer ID number for the existing user
+    - *{username}* contains the plain text username for the existing user
+    - *{password}* contains the plain text password for the existing user
+    - *{email}* contains the email address for the existing user
+
+##### Remove user POST example
+```
+{
+  "type": "userRemove",
+  "user": {
+    "id": 123,
+    "username": "User1",
+    "password": "Password",
+    "email": "user@somewhere.com"
+  }
+}
+```
+#### Response
+
+The response object contains five main values and two sub-values:
+- *{status}* contains current HTTP status in human-readable format
+- *{code}* contains current HTTP status code
+- *{token}* contains unique token for transaction
+- *{message}* contains current server message
+- *{result}* contains the user information
+    - *{type}* contains the transaction type for processing (e.g. userRegister, userLogin, etc)
+    - *{id}* contains the integer ID number for the new user
+    - *{username}* contains the plain text username for the new user
+
+##### Expected response for successful user removal
+```
+{
+  "status": "ok",
+  "code": 200,
+  "token": "M8YQ6Ez_-c9wyzBJ362l2Kqi8B2SJ0GxwBW_JZiVbaU=",
+  "message": "success",
+  "result": {
+    "type": "userRemove",
+    "id": "123",
+    "username": "User1"
+  }
+}
+```
+
+##### Expected response for failed user removal
+```
+{
+  "status": "fail",
+  "code": 400,
+  "token": "M8YQ6Ez_-c9wyzBJ362l2Kqi8B2SJ0GxwBW_JZiVbaU=",
+  "message": "invalid",
+  "result": {
+    "type": "userRemove",
+    "id": "123",
+    "username": "User1"
+  }
+}
+```
+
+### Credits
+
+**Compiled by:** Reg Proctor and Ian Bartelds
+**Refactored by:** Michael Gilardi
